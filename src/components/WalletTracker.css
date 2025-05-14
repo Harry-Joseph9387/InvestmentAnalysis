@@ -1,0 +1,604 @@
+@import url('https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:ital,wght@0,100;0,200;0,300;0,400;0,500;0,600;0,700;0,800;0,900;1,100;1,200;1,300;1,400;1,500;1,600;1,700;1,800;1,900&family=Funnel+Sans:ital,wght@0,300..800;1,300..800&family=League+Spartan:wght@100..900&family=Rubik:ital,wght@0,300..900;1,300..900&display=swap');
+.barlow-semi-condensed-thin {
+  font-family: "Barlow Semi Condensed", sans-serif;
+  font-weight: 100;
+  font-style: normal;
+}
+.wallet-tracker-container {
+  max-width: 90vw;
+  margin: 0 auto;
+  padding: 20px;
+  /* font-family: 'Poppins', 'Roboto', -apple-system, BlinkMacSystemFont, sans-serif; */
+  font-size: 18px;
+  line-height: 1.6;
+  background-color: #ffffff;
+  border-radius: 10px;
+  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.wallet-table-container {
+  max-height: 75vh;
+  /* width: 100vw; */
+  overflow-y: auto;
+  margin-top: 0;
+  border: 1px solid #ddd;
+  border-top: none;
+  border-radius: 0 0 5px 5px;
+}
+
+.wallet-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+  font-family: 'Poppins', 'Roboto', sans-serif;
+}
+
+.wallet-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.wallet-table th,
+.wallet-table td {
+  padding: 8px 6px;
+  text-align: left;
+  border: 1px solid #ddd;
+  font-weight: 500;
+}
+
+.wallet-table th {
+  background-color: #f8f9fa;
+  font-weight: 700;
+  font-size: 15px;
+  padding: 10px 8px;
+  font-family: 'Montserrat', 'Arial', sans-serif;
+  box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+}
+
+.wallet-table input[type="number"] {
+  width: 100%;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  text-align: center;
+}
+
+.action-buttons {
+  display: flex;
+  justify-content: center;
+  gap: 0.5rem;
+}
+
+.note-button {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 1.2rem;
+  padding: 0.3rem;
+}
+
+.delete-transaction-button {
+  background-color: #ff4444;
+  color: white;
+  border: none;
+  width: 30px;
+  height: 30px;
+  cursor: pointer;
+  font-size: 1.2rem;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.delete-transaction-button:hover {
+  background-color: #cc0000;
+}
+
+.note-row {
+  background-color: #f0f8ff;
+}
+
+.note-input-container {
+  display: flex;
+  gap: 1rem;
+  padding: 0.5rem;
+}
+
+.note-input {
+  flex: 1;
+  padding: 0.5rem;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+}
+
+.save-note-button {
+  padding: 0.5rem 1rem;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.save-note-button:hover {
+  background-color: #388e3c;
+}
+
+.note-display {
+  text-align: left;
+  padding: 0.5rem 1rem;
+  background-color: #fff3cd;
+  color: #856404;
+  font-style: italic;
+}
+
+.has-note {
+  border-bottom: none;
+}
+
+.add-row-button {
+  display: block;
+  margin: 1rem auto;
+  padding: 0.8rem 1.5rem;
+  background-color: #2196f3;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+}
+
+.add-row-button:hover {
+  background-color: #1976d2;
+}
+
+.wallet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.wallet-header h1 {
+  font-size: 28px;
+  font-weight: 700;
+  font-family: 'Montserrat', 'Arial', sans-serif;
+  letter-spacing: 0.5px;
+}
+
+.save-container {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.save-button {
+  padding: 0.8rem 1.5rem;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 1rem;
+  transition: background-color 0.3s;
+}
+
+.save-button:hover {
+  background-color: #388e3c;
+}
+
+.save-status {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 14px;
+  font-weight: bold;
+}
+
+.save-status.success {
+  background-color: #d4edda;
+  color: #155724;
+}
+
+.save-status.error {
+  background-color: #f8d7da;
+  color: #721c24;
+} 
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.refresh-button {
+  padding: 8px 16px;
+  background-color: #007bff;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.refresh-button:hover {
+  background-color: #0069d9;
+}
+
+.info-button {
+  padding: 6px 12px;
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.info-button:hover {
+  background-color: #e2e6ea;
+}
+
+.modal-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  z-index: 1000;
+}
+
+.modal-content {
+  background-color: white;
+  border-radius: 8px;
+  max-width: 600px;
+  width: 90%;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.info-modal {
+  max-width: 800px;
+}
+
+.modal-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 15px 20px;
+  border-bottom: 1px solid #eee;
+}
+
+.modal-header h2 {
+  margin: 0;
+  color: #333;
+}
+
+.modal-close {
+  border: none;
+  background: none;
+  font-size: 24px;
+  cursor: pointer;
+  color: #666;
+}
+
+.modal-close:hover {
+  color: #333;
+}
+
+.modal-body {
+  padding: 20px;
+}
+
+.modal-body ul {
+  padding-left: 20px;
+  display: flex;
+  align-items: start;
+  flex-direction: column;
+  text-align:start ;
+}
+
+.modal-body li {
+  margin-bottom: 8px;
+}
+
+.profit {
+  color: #4CAF50;
+  font-weight: bold;
+}
+
+.loss {
+  color: #f44336;
+  font-weight: bold;
+}
+
+.transaction-note {
+  font-style: italic;
+  color: #444;
+  text-align: center;
+  font-size: 14px;
+  padding: 8px 0;
+  font-weight: 500;
+  /* font-family: 'Georgia', serif; */
+}
+.wallet-table .note-row td{
+  text-align: center;
+}
+
+.tid{
+  width: 10px;
+}
+.value-display {
+  text-align: right;
+  /* font-family:'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif ; */
+  font-weight: 700;
+  font-size: 14px;
+  letter-spacing: 0.3px;
+}
+
+.value-display.profit {
+  color: #28a745;
+  font-weight: 700;
+}
+
+.value-display.loss {
+  color: #dc3545;
+  font-weight: 700;
+}
+
+.negative-balance {
+  background-color: #fff3f3;
+}
+
+.wallet-actions-section {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.wallet-tabs {
+  display: flex;
+  border-bottom: 1px solid #ddd;
+  margin-top: 20px;
+  margin-bottom: 0;
+}
+
+.tab-button {
+  padding: 10px 20px;
+  background-color: #f8f9fa;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+  color: #555;
+  margin-right: 5px;
+  position: relative;
+  top: 1px;
+  transition: all 0.2s ease;
+}
+
+.tab-button:hover {
+  background-color: #e9ecef;
+}
+
+.tab-button.active {
+  background-color: #fff;
+  color: #007bff;
+  border-bottom: 1px solid #fff;
+  z-index: 2;
+}
+
+.wallet-deposit-section, .wallet-withdraw-section {
+  display: flex;
+  align-items: center;
+  flex: 1;
+  min-width: 300px;
+}
+
+.deposit-input, .withdraw-input {
+  flex: 1;
+  padding: 12px 14px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  margin-right: 10px;
+  font-size: 17px;
+  font-family: 'Roboto', sans-serif;
+}
+
+.deposit-button, .withdraw-button {
+  padding: 12px 18px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  font-size: 17px;
+  font-family: 'Montserrat', 'Arial', sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  transition: background-color 0.2s;
+}
+
+.deposit-button {
+  background-color: #28a745;
+  color: white;
+}
+
+.withdraw-button {
+  background-color: #dc3545;
+  color: white;
+}
+
+.deposit-button:hover {
+  background-color: #218838;
+}
+
+.withdraw-button:hover {
+  background-color: #c82333;
+}
+
+@media (max-width: 768px) {
+  .wallet-table {
+    font-size: 14px;
+  }
+  
+  .wallet-table th, .wallet-table td {
+    padding: 8px 5px;
+  }
+  
+  .wallet-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 10px;
+  }
+  
+  .header-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  
+  .wallet-actions-section {
+    flex-direction: column;
+  }
+  
+  .wallet-deposit-section, .wallet-withdraw-section {
+    width: 100%;
+    margin-bottom: 10px;
+  }
+}
+
+.zero-investment-note {
+  display: block;
+  font-size: 15px;
+  color: #666;
+  margin-top: 8px;
+  font-style: italic;
+}
+
+.zero-investment-note-row {
+  background-color: #f9f9f9;
+  border-top: 1px solid #eee;
+}
+
+.zero-investment-cell {
+  background-color: #f9f9f9;
+  color: #888;
+}
+
+.column-arrangement-note {
+  background-color: #f0f0f0;
+  font-size: 15px;
+}
+
+.reminder-button {
+  background: none;
+  border: none;
+  font-size: 24px;
+  cursor: pointer;
+  padding: 0 10px;
+  margin-right: 5px;
+  transition: transform 0.2s;
+}
+
+.reminder-button:hover {
+  transform: scale(1.2);
+}
+
+.reminder-modal {
+  width: 90%;
+  max-width: 600px;
+}
+
+.reminder-form {
+  margin-bottom: 20px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid #ddd;
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: 600;
+}
+
+.form-group input,
+.form-group textarea {
+  width: 100%;
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.add-reminder-button {
+  padding: 10px 15px;
+  background-color: #4c6ef5;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.3s;
+}
+
+.add-reminder-button:hover {
+  background-color: #3b5bdb;
+}
+
+.reminders-list h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 18px;
+}
+
+.no-reminders {
+  font-style: italic;
+  color: #666;
+}
+
+.reminders-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.reminders-table th,
+.reminders-table td {
+  border: 1px solid #ddd;
+  padding: 8px 12px;
+  text-align: left;
+}
+
+.reminders-table th {
+  background-color: #f8f9fa;
+  font-weight: 600;
+}
+
+.delete-reminder-button {
+  background-color: #ff6b6b;
+  color: white;
+  border: none;
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 16px;
+}
+
+.delete-reminder-button:hover {
+  background-color: #fa5252;
+}
