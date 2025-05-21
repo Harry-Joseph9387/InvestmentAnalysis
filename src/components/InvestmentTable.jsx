@@ -24,6 +24,14 @@ const StockAnalysis = () => {
     profitLoss: 0,
     quantity: 0
   });
+  const [visibleColumns, setVisibleColumns] = useState([
+    'id', 'price', 'quantity', 'totalInvestment', 
+    'extraCharges', 'averagePrice', 'totalExtraCharges', 'totalShares'
+  ]);
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [showColumnSelector, setShowColumnSelector] = useState(false);
+  const [showUtilityMenu, setShowUtilityMenu] = useState(false);
+  const [showUtilityPanel, setShowUtilityPanel] = useState(false);
 
   // Load companies from localStorage when component mounts
   useEffect(() => {
@@ -1171,62 +1179,122 @@ const saveAllData = () => {
     }
   };
 
-  // Add this effect to handle localStorage management for page visits
+  // Find and modify the useEffect that handles page unload events
   useEffect(() => {
     let exitNotification = null;
-    let isExiting = false;
     
-    // Show notification when the page becomes hidden
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden' && !isExiting) {
-        isExiting = true;
-        
-        // Set a timeout to clear data if user doesn't return
-        const clearTimer = setTimeout(() => {
-          localStorage.removeItem('companies');
-        }, 5000); // Give 5 seconds before clearing
-        
-        // If user returns, cancel the timer
-        const handleVisibilityReturn = () => {
-          if (document.visibilityState === 'visible') {
-            clearTimeout(clearTimer);
-            isExiting = false;
-            if (exitNotification) {
-              exitNotification.remove();
-              exitNotification = null;
-            }
-            document.removeEventListener('visibilitychange', handleVisibilityReturn);
-          }
-        };
-        
-        document.addEventListener('visibilitychange', handleVisibilityReturn);
-      }
-    };
-    
-    // Clear data when the page is unloading
+    // Show notification only when user is navigating away from the site
     const handleBeforeUnload = (event) => {
-      localStorage.removeItem('companies');
+      // Don't clear localStorage, just show the export notification
+      if (!exitNotification) {
+        exitNotification = document.createElement('div');
+        exitNotification.className = 'exit-notification';
+        exitNotification.innerHTML = 'Please export your data before leaving!';
+        document.body.appendChild(exitNotification);
+        
+        // Remove the notification after a short delay
+        setTimeout(() => {
+          if (exitNotification && exitNotification.parentNode) {
+            exitNotification.parentNode.removeChild(exitNotification);
+            exitNotification = null;
+          }
+        }, 3000);
+      }
+      
+      // Standard method for modern browsers to show a confirmation dialog
       event.preventDefault();
-      event.returnValue = "Are you sure you want to leave? Your data will be cleared.";
-      return "Are you sure you want to leave? Your data will be cleared.";
+      event.returnValue = ''; // Required for Chrome
     };
     
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    // Add event listener for beforeunload
     window.addEventListener('beforeunload', handleBeforeUnload);
     
+    // Clean up event listener on component unmount
     return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      if (exitNotification) {
-        exitNotification.remove();
+      if (exitNotification && exitNotification.parentNode) {
+        exitNotification.parentNode.removeChild(exitNotification);
       }
     };
   }, []);
 
+  // If there's a handleVisibilityChange function that clears localStorage, modify it:
+  const handleVisibilityChange = () => {
+    if (document.visibilityState === 'hidden') {
+      // Only show notification, don't clear localStorage
+      const notification = document.createElement('div');
+      notification.className = 'exit-notification';
+      notification.innerHTML = 'Please export your data before leaving!';
+      document.body.appendChild(notification);
+      
+      setTimeout(() => {
+        if (notification && notification.parentNode) {
+          notification.parentNode.removeChild(notification);
+        }
+      }, 3000);
+    }
+  };
+
+  // Add this useEffect to handle responsive columns
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+      
+      // Adjust visible columns based on screen width with your priority order
+      if (window.innerWidth < 500) {
+        setVisibleColumns(['id', 'price', 'quantity']);
+      } else if (window.innerWidth < 700) {
+        setVisibleColumns(['id', 'price', 'quantity', 'totalInvestment', 'extraCharges']);
+      } else if (window.innerWidth < 900) {
+        setVisibleColumns(['id', 'price', 'quantity', 'totalInvestment', 'extraCharges', 'averagePrice']);
+      } else {
+        setVisibleColumns(['id', 'price', 'quantity', 'totalInvestment', 'extraCharges', 'averagePrice', 'totalExtraCharges', 'totalShares']);
+      }
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Set initial state
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []);
+
+  // Add this function to replace a column
+  const replaceColumn = (columnToAdd) => {
+    if (visibleColumns.includes(columnToAdd)) return;
+    
+    // Define the full priority order - updated with your specified order
+    const priorityOrder = [
+      'id', 'price', 'quantity', 'totalInvestment',
+      'extraCharges', 'averagePrice', 'totalExtraCharges', 'totalShares'
+    ];
+    
+    // Find the lowest priority visible column
+    const lowestPriorityColumn = [...visibleColumns].sort((a, b) => {
+      return priorityOrder.indexOf(a) - priorityOrder.indexOf(b);
+    }).pop();
+    
+    // Replace it with the column to add
+    setVisibleColumns(prev => 
+      prev.map(col => col === lowestPriorityColumn ? columnToAdd : col)
+    );
+    
+    setShowColumnSelector(false);
+  };
+
+  // Add this function to toggle the menu
+  const toggleUtilityMenu = () => {
+    setShowUtilityMenu(!showUtilityMenu);
+  };
+
+  // Add this function to toggle the panel
+  const toggleUtilityPanel = () => {
+    setShowUtilityPanel(!showUtilityPanel);
+  };
+
   return (
     <div className="stock-analysis-container">
-      <h1>Stock Investment Analysis</h1>
-      <div className="top-controls">
+      {/* <h1>Stock Investment Analysis</h1> */}
+      {/* <div className="top-controls">
         <button 
           className="charges-info-button"
           onClick={() => setShowChargesModal(true)}
@@ -1240,7 +1308,7 @@ const saveAllData = () => {
         >
           {showCalculator ? 'Hide Calculator' : 'Selected Transaction Sum Calculator'}
         </button>
-      </div>
+      </div> */}
 
       {showCalculator && (
         <div className="calculator-container">
@@ -1419,54 +1487,130 @@ const saveAllData = () => {
         </div>
       )}
 
-      <div className="navigation-header">
-        <button 
-          className="new-company-button"
-          onClick={clearForm}
-        >
-          New Company
-        </button>
-        <div className="current-company">
-          {companyName && <span>Current Company: {companyName}</span>}
-        </div>
+      <div className={`utility-panel-container ${showUtilityPanel ? 'open' : ''}`}>
+        {/* <div className="utility-toggle" > */}
+          <span className="arrow-icon" onClick={toggleUtilityPanel}>{showUtilityPanel ? '▲' : '▼'}</span>
+        {/* </div> */}
         
-        {/* Simplified data backup/restore controls */}
-        <div className="data-controls">
-          <button 
-            className="data-button"
-            onClick={exportCompaniesToFile}
-            title="Download your companies data as a file"
-          >
-            Export Data
-          </button>
+        <div className="utility-panel">
+          <div className="utility-section">
+            <h3>Data Management</h3>
+            <div className="utility-buttons">
+              <button 
+                className="utility-button"
+                onClick={exportCompaniesToFile}
+                title="Download your companies data as a file"
+              >
+                Export Data
+              </button>
+              
+              <button 
+                className="utility-button"
+                onClick={() => document.getElementById('import-companies-input').click()}
+                title="Replace all companies with data from a file"
+              >
+                Import Data
+              </button>
+              
+              <button 
+                className="utility-button danger"
+                onClick={clearLocalStorage}
+                title="Clear all data from localStorage"
+              >
+                Clear All Data
+              </button>
+            </div>
+          </div>
           
-          {/* Hidden file input for import */}
-          <input
-            type="file"
-            id="import-companies-input"
-            accept=".json"
-            style={{ display: 'none' }}
-            onChange={importCompaniesFromFile}
-          />
-          <button 
-            className="data-button"
-            onClick={() => document.getElementById('import-companies-input').click()}
-            title="Replace all companies with data from a file"
-          >
-            Import Data
-          </button>
+          <div className="utility-section">
+            <h3>Company Management</h3>
+            <div className="utility-buttons">
+              <button 
+                className="utility-button"
+                onClick={clearForm}
+                title="Create a new company"
+              >
+                New Company
+              </button>
+              
+              {companies.some(c => c.name === companyName) && !isNewCompanyMode && (
+                <button
+                  className="utility-button danger"
+                  onClick={e => deleteCompany(companyName, e)}
+                  title="Delete this company"
+                >
+                  Delete Company
+                </button>
+              )}
+            </div>
+          </div>
           
-          {/* Add the clear localStorage button */}
-          <button 
-            className="data-button"
-            onClick={clearLocalStorage}
-            title="Clear all data from localStorage"
-            style={{ backgroundColor: '#dc3545', color: 'white' }}
-          >
-            Clear All Data
-          </button>
+          <div className="utility-section">
+            <h3>Transaction Tools</h3>
+            <div className="utility-buttons">
+              <button
+                className="utility-button"
+                onClick={() => setShowCalculator(!showCalculator)}
+                title="Toggle transaction calculator"
+              >
+                {showCalculator ? 'Hide Calculator' : 'Show Calculator'}
+              </button>
+              
+              {showCalculator && (
+                <button
+                  className="utility-button"
+                  onClick={clearSelectedTransactions}
+                  title="Clear selection"
+                  disabled={selectedTransactions.length === 0}
+                >
+                  Clear Selection
+                </button>
+              )}
+            </div>
+            
+            {showCalculator && selectedTransactions.length > 0 && (
+              <div className="calculator-summary">
+                <div className="summary-row">
+                  <span>Selected:</span>
+                  <span>{selectedTransactions.length} transactions</span>
+                </div>
+                
+                <div className="summary-row">
+                  <span>Total Shares:</span>
+                  <span>{calculateSelectedSum().totalShares.toFixed(2)}</span>
+                </div>
+                
+                <div className="summary-row">
+                  <span>Total Investment:</span>
+                  <span>₹{calculateSelectedSum().totalInvestment.toFixed(2)}</span>
+                </div>
+                
+                <div className="summary-row">
+                  <span>Total Charges:</span>
+                  <span>₹{calculateSelectedSum().totalExtraCharges.toFixed(2)}</span>
+                </div>
+                
+                {hasSellTransactionsSelected() && (
+                  <div className="warning-text">
+                    Note: Results include sell transactions which may affect accuracy
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
         </div>
       </div>
+
+      {/* Keep the hidden file input for import */}
+      <input
+        type="file"
+        id="import-companies-input"
+        accept=".json"
+        style={{ display: 'none' }}
+        onChange={importCompaniesFromFile}
+      />
+
+ 
 
       <div className="company-controls">
         <div className="company-input">
@@ -1548,16 +1692,6 @@ const saveAllData = () => {
               Save Transactions
             </button>
           </div>
-          
-          {companies.some(c => c.name === companyName) && !isNewCompanyMode && (
-            <button
-              className="delete-company-button"
-              onClick={e => deleteCompany(companyName, e)}
-              title="Delete this company"
-            >
-              Delete Company
-            </button>
-          )}
         </div>
       </div>
 
@@ -1565,15 +1699,45 @@ const saveAllData = () => {
         <thead>
           <tr>
             {showCalculator && <th className="select-column">Select</th>}
-            <th>Transaction #</th>
-            <th>Price (₹)</th>
-            <th>Quantity</th>
-            <th>Total Shares</th>
-            <th>Extra Charges (₹)</th>
-            <th>Total Extra Charges (₹)</th>
-            <th>Total Investment (₹)</th>
-            <th>Average Price (₹)</th>
-            <th></th>
+            {visibleColumns.includes('id') && <th>id</th>}
+            {visibleColumns.includes('price') && <th>Price (₹)</th>}
+            {visibleColumns.includes('quantity') && <th>Quantity</th>}
+            {visibleColumns.includes('totalShares') && <th>Total Shares</th>}
+            {visibleColumns.includes('extraCharges') && <th>Extra Charges (₹)</th>}
+            {visibleColumns.includes('totalExtraCharges') && <th>Total Extra Charges (₹)</th>}
+            {visibleColumns.includes('totalInvestment') && <th>Total Investment (₹)</th>}
+            {visibleColumns.includes('averagePrice') && <th>Average Price (₹)</th>}
+            <th>
+              <button 
+                className="column-selector-button" 
+                onClick={() => setShowColumnSelector(!showColumnSelector)}
+                title="Select columns"
+              >
+                ⋮
+              </button>
+              {showColumnSelector && (
+                <div className="column-selector-dropdown">
+                  <h4>Select column to show:</h4>
+                  {['id', 'price', 'quantity', 'totalShares', 'totalInvestment', 
+                    'extraCharges', 'averagePrice', 'totalExtraCharges'].map(col => (
+                    <div 
+                      key={col} 
+                      className={`column-option ${visibleColumns.includes(col) ? 'active' : ''}`}
+                      onClick={() => replaceColumn(col)}
+                    >
+                      {col === 'id' ? 'Transaction #' : 
+                      col === 'price' ? 'Price' :
+                      col === 'quantity' ? 'Quantity' :
+                      col === 'totalShares' ? 'Total Shares' :
+                      col === 'extraCharges' ? 'Extra Charges' :
+                      col === 'totalExtraCharges' ? 'Total Extra Charges' :
+                      col === 'totalInvestment' ? 'Total Investment' :
+                      'Average Price'}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </th>
           </tr>
         </thead>
         <tbody>
@@ -1588,41 +1752,42 @@ const saveAllData = () => {
                   />
                 </td>
               )}
-              <td>{transaction.id}</td>
-              <td>
-                <input
-                  type="number"
-                  value={transaction.price}
-                  onChange={(e) => handleInputChange(index, 'price', e.target.value)}
-                  placeholder="Enter price"
-                />
-              </td>
-              <td>
-                <input
-                  type="text"
-                  value={transaction.quantity}
-                  onChange={(e) => handleInputChange(index, 'quantity', e.target.value.replace(/[^0-9.\-]/g, ''))}
-                  placeholder="Enter quantity"
-                  inputMode="decimal"
-                />
-              </td>
-              <td>{transaction.totalShares?.toFixed(2) || '0.00'}</td>
-              <td>{transaction.extraCharges?.toFixed(2) || '0.00'}</td>
-              <td>{transaction.totalExtraCharges?.toFixed(2) || '0.00'}</td>
-              <td>{transaction.totalInvestment?.toFixed(2) || '0.00'}</td>
-              <td>{transaction.averagePrice?.toFixed(2) || '0.00'}</td>
+              {visibleColumns.includes('id') && <td>{transaction.id}</td>}
+              {visibleColumns.includes('price') && (
+                <td>
+                  <input
+                    type="text"
+                    value={transaction.price}
+                    onChange={(e) => handleInputChange(index, 'price', e.target.value.replace(/[^0-9.]/g, ''))}
+                    placeholder="Enter price"
+                    inputMode="decimal"
+                  />
+                </td>
+              )}
+              {visibleColumns.includes('quantity') && (
+                <td>
+                  <input
+                    type="text"
+                    value={transaction.quantity}
+                    onChange={(e) => handleInputChange(index, 'quantity', e.target.value.replace(/[^0-9.\-]/g, ''))}
+                    placeholder="Enter quantity"
+                    inputMode="decimal"
+                  />
+                </td>
+              )}
+              {visibleColumns.includes('totalShares') && <td>{transaction.totalShares?.toFixed(2) || '0.00'}</td>}
+              {visibleColumns.includes('extraCharges') && <td>{transaction.extraCharges?.toFixed(2) || '0.00'}</td>}
+              {visibleColumns.includes('totalExtraCharges') && <td>{transaction.totalExtraCharges?.toFixed(2) || '0.00'}</td>}
+              {visibleColumns.includes('totalInvestment') && <td>{transaction.totalInvestment?.toFixed(2) || '0.00'}</td>}
+              {visibleColumns.includes('averagePrice') && <td>{transaction.averagePrice?.toFixed(2) || '0.00'}</td>}
               <td className="delete-transaction-cell">
                 <button 
                   className="delete-transaction-button"
                   onClick={(e) => {
-                    // Ensure the event doesn't propagate to other handlers
                     e.preventDefault();
                     e.stopPropagation();
-                    
-                    // Call the delete transaction function
                     deleteTransaction(index, e);
-                    
-                    return false; // Extra prevention of default behavior
+                    return false;
                   }}
                   title="Delete transaction"
                 >
@@ -1635,18 +1800,14 @@ const saveAllData = () => {
         <tfoot>
           <tr>
             {showCalculator && <td></td>}
-            <td colSpan="3">Total</td>
-            <td>{transactions[transactions.length - 1]?.totalShares?.toFixed(2) || '0.00'}</td>
-            <td>
-              {transactions.reduce((sum, t) => sum + (t.extraCharges || 0), 0).toFixed(2)}
-            </td>
-            <td>
-              {transactions[transactions.length - 1]?.totalExtraCharges?.toFixed(2) || '0.00'}
-            </td>
-            <td>
-              {transactions[transactions.length - 1]?.totalInvestment?.toFixed(2) || '0.00'}
-            </td>
-            <td>-</td>
+            {visibleColumns.includes('id') && <td>Total</td>}
+            {visibleColumns.includes('price') && <td></td>}
+            {visibleColumns.includes('quantity') && <td></td>}
+            {visibleColumns.includes('totalShares') && <td>{transactions[transactions.length - 1]?.totalShares?.toFixed(2) || '0.00'}</td>}
+            {visibleColumns.includes('extraCharges') && <td>{transactions.reduce((sum, t) => sum + (t.extraCharges || 0), 0).toFixed(2)}</td>}
+            {visibleColumns.includes('totalExtraCharges') && <td>{transactions[transactions.length - 1]?.totalExtraCharges?.toFixed(2) || '0.00'}</td>}
+            {visibleColumns.includes('totalInvestment') && <td>{transactions[transactions.length - 1]?.totalInvestment?.toFixed(2) || '0.00'}</td>}
+            {visibleColumns.includes('averagePrice') && <td>-</td>}
             <td></td>
           </tr>
         </tfoot>

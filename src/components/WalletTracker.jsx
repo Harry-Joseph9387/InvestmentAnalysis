@@ -30,6 +30,16 @@ const WalletTracker = () => {
   const [reminderPrice, setReminderPrice] = useState('');
   const [reminderNote, setReminderNote] = useState('');
 
+  // Add these state variables at the top of the component
+  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
+  const [showCompanyDropdown, setShowCompanyDropdown] = useState(false);
+  const [visibleCompanies, setVisibleCompanies] = useState([]);
+  const [dropdownCompanies, setDropdownCompanies] = useState([]);
+
+  // Add these new state variables at the top of the component
+  const [expandedBuyRows, setExpandedBuyRows] = useState([]);
+  const [individualBuyTransactions, setIndividualBuyTransactions] = useState({});
+
   // Load companies data from localStorage when component mounts
   useEffect(() => {
     const loadCompaniesFromStorage = () => {
@@ -78,6 +88,37 @@ const WalletTracker = () => {
     };
   }, []);
 
+  // Modify the useEffect that handles responsive layout
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowWidth(window.innerWidth);
+    };
+
+    window.addEventListener('resize', handleResize);
+    handleResize(); // Set initial state
+    
+    return () => window.removeEventListener('resize', handleResize);
+  }, []); // Only run on mount
+
+  // Add a separate useEffect to update visible companies when transactions or window width changes
+  useEffect(() => {
+    // Get current companies data
+    const { investedCompanies } = getTableColumns();
+    const threshold = windowWidth < 768 ? 2 : 
+                      windowWidth < 992 ? 3 : 
+                      windowWidth < 1200 ? 4 : 5;
+    
+    if (investedCompanies.length <= threshold) {
+      // If we have fewer companies than the threshold, show them all
+      setVisibleCompanies(investedCompanies);
+      setDropdownCompanies([]);
+    } else {
+      // Otherwise, show the first few and put the rest in dropdown
+      setVisibleCompanies(investedCompanies.slice(0, threshold));
+      setDropdownCompanies(investedCompanies.slice(threshold));
+    }
+  }, [walletTransactions, companyNames, windowWidth]); // Dependencies that should trigger updates
+
   // Process company data to create wallet transactions
   const processCompanyData = (companies) => {
     try {
@@ -87,7 +128,6 @@ const WalletTracker = () => {
       // If there's no transaction history, we can't proceed correctly
       if (!transactionHistory || !Array.isArray(transactionHistory.transactions) || transactionHistory.transactions.length === 0) {
         console.log("No transaction history found, using fallback method");
-        // Use your original method here if needed
         return;
       }
       
@@ -111,13 +151,6 @@ const WalletTracker = () => {
       // Sort the transaction history by globalIndex
       const sortedTransactions = [...transactionHistory.transactions].sort((a, b) => a.globalIndex - b.globalIndex);
       
-      console.log("Sorted transactions:", sortedTransactions.map(t => ({
-        globalIndex: t.globalIndex,
-        company: t.companyName,
-        txNum: t.transactionNumber,
-        type: t.type || "stock transaction"
-      })));
-      
       // Create wallet rows in the same order as the transaction history
       let walletRows = [];
       let rowId = 1;
@@ -127,6 +160,8 @@ const WalletTracker = () => {
       // Variables to track combined buy transactions
       let pendingBuyRow = null;
       let hasPendingBuys = false;
+      let pendingBuyDetails = []; // Array to store individual buy transaction details
+      let allBuyTransactions = {}; // Store all buy transactions here instead of using setState
       
       // Process each transaction in the global order
       for (const historyRecord of sortedTransactions) {
@@ -136,10 +171,21 @@ const WalletTracker = () => {
         if (companyName === "Wallet") {
           // If we have pending buy transactions, add them first
           if (hasPendingBuys && pendingBuyRow) {
+            // Store the individual buy transactions with this row ID
+            pendingBuyRow.hasBuyTransactions = true;
+            pendingBuyRow.buyTransactionCount = pendingBuyDetails.length;
+            
             walletRows.push(pendingBuyRow);
+            
+            // Store buy transactions in our local object
+            if (pendingBuyRow.id) {
+              allBuyTransactions[pendingBuyRow.id] = [...pendingBuyDetails];
+            }
+            
             rowId++;
             hasPendingBuys = false;
             pendingBuyRow = null;
+            pendingBuyDetails = [];
           }
           
           const transactionAmount = parseFloat(amount) || 0;
@@ -206,8 +252,6 @@ const WalletTracker = () => {
           continue;
         }
         
-        console.log(`Processing ${companyName} transaction #${transactionNumber}: price=${tx.price}, quantity=${tx.quantity}`);
-        
         const price = parseFloat(tx.price) || 0;
         const quantity = parseFloat(tx.quantity) || 0;
         
@@ -217,10 +261,9 @@ const WalletTracker = () => {
         }
         
         // Determine if this is a buy or sell transaction
-        // Use the recorded type if available, otherwise check the quantity
         const isSellTransaction = transactionType === 'sell' || 
-                                  (recordedQuantity && parseFloat(recordedQuantity) < 0) || 
-                                  quantity < 0;
+                                 (recordedQuantity && parseFloat(recordedQuantity) < 0) || 
+                                 quantity < 0;
         
         if (!isSellTransaction) {
           // Buy transaction
@@ -235,30 +278,36 @@ const WalletTracker = () => {
             price: price,
             quantity: quantity,
             remaining: quantity,
-            transactionId: transactionNumber // Store the transaction ID for later reference
+            transactionId: transactionNumber
           });
-          
-          // Check if previous transaction was a withdrawal 
-          const previousTransaction = walletTransactions.length > 0 ? 
-            walletTransactions[walletTransactions.length - 1] : null;
-          const isPreviousWithdrawal = previousTransaction && 
-            walletTransactions.length > 1 && 
-            walletTransactions[walletTransactions.length - 2].isNote && 
-            walletTransactions[walletTransactions.length - 2].note.includes('Withdrew');
           
           // Update investments and wallet
           const totalCost = (price * quantity) + charges;
           currentWalletAmount -= totalCost;
           currentInvestments[companyName] = (parseFloat(currentInvestments[companyName] || 0) + totalCost).toFixed(3);
           
-          if (isPreviousWithdrawal || !hasPendingBuys) {
-            // Create a new row if this is the first buy or follows a withdrawal
+          // Save individual buy transaction details
+          pendingBuyDetails.push({
+            id: `buy-${transactionNumber}`,
+            companyName,
+            price,
+            quantity,
+            charges,
+            totalCost,
+            transactionId: transactionNumber,
+            timestamp: new Date().toISOString()
+          });
+          
+          if (!hasPendingBuys) {
+            // Create a new row if this is the first buy
             pendingBuyRow = {
               id: rowId,
               walletAmount: currentWalletAmount.toFixed(3),
               investments: {...currentInvestments},
               extraMoneyCaused: extraMoneyCaused.toFixed(3),
-              isNote: false
+              isNote: false,
+              hasBuyTransactions: true,
+              buyTransactionCount: pendingBuyDetails.length
             };
             hasPendingBuys = true;
           } else {
@@ -267,7 +316,8 @@ const WalletTracker = () => {
               ...pendingBuyRow,
               walletAmount: currentWalletAmount.toFixed(3),
               investments: {...currentInvestments},
-              extraMoneyCaused: extraMoneyCaused.toFixed(3)
+              extraMoneyCaused: extraMoneyCaused.toFixed(3),
+              buyTransactionCount: pendingBuyDetails.length
             };
           }
         } else {
@@ -276,10 +326,21 @@ const WalletTracker = () => {
           
           // First, add any pending buy transactions as a single row
           if (hasPendingBuys && pendingBuyRow) {
+            // Store the individual buy transactions with this row ID
+            pendingBuyRow.hasBuyTransactions = true;
+            pendingBuyRow.buyTransactionCount = pendingBuyDetails.length;
+            
             walletRows.push(pendingBuyRow);
+            
+            // Store buy transactions in our local object
+            if (pendingBuyRow.id) {
+              allBuyTransactions[pendingBuyRow.id] = [...pendingBuyDetails];
+            }
+            
             rowId++;
             hasPendingBuys = false;
             pendingBuyRow = null;
+            pendingBuyDetails = [];
           }
           
           // Note: Each sell transaction always creates a new row in the wallet tracker,
@@ -394,7 +455,16 @@ const WalletTracker = () => {
       
       // Add any pending buy transactions at the end
       if (hasPendingBuys && pendingBuyRow) {
+        // Store the individual buy transactions with this row ID
+        pendingBuyRow.hasBuyTransactions = true;
+        pendingBuyRow.buyTransactionCount = pendingBuyDetails.length;
+        
         walletRows.push(pendingBuyRow);
+        
+        // Store buy transactions in our local object
+        if (pendingBuyRow.id) {
+          allBuyTransactions[pendingBuyRow.id] = [...pendingBuyDetails];
+        }
       }
       
       // If no transactions were processed, add a default row
@@ -410,8 +480,9 @@ const WalletTracker = () => {
       
       console.log(`Created ${walletRows.length} wallet rows from ${sortedTransactions.length} transactions`);
       
-      // Set the wallet transactions state
+      // Set all state at once to avoid intermediate renders
       setWalletTransactions(walletRows);
+      setIndividualBuyTransactions(allBuyTransactions);
       
     } catch (error) {
       console.error("Error processing company data:", error);
@@ -814,24 +885,76 @@ const handleAddMoneyToWallet = () => {
     return companies.every(company => !parseFloat(investments[company] || '0'));
   }
 
+  // Add this function to add a company from dropdown to visible columns
+  const moveCompanyToVisible = (company) => {
+    // Move the selected company to visible and the last visible to dropdown
+    setVisibleCompanies(prev => [...prev.filter(c => c !== company), company]);
+    setDropdownCompanies(prev => {
+      const lastVisible = visibleCompanies[visibleCompanies.length - 1];
+      return [...prev.filter(c => c !== company), lastVisible];
+    });
+    setShowCompanyDropdown(false);
+  };
+
+  // Add a toggle function for expanding/collapsing buy transactions
+  const toggleBuyTransactions = (rowId) => {
+    setExpandedBuyRows(prev => {
+      if (prev.includes(rowId)) {
+        return prev.filter(id => id !== rowId);
+      } else {
+        return [...prev, rowId];
+      }
+    });
+  };
+
   // Render active investments table
   const renderActiveInvestmentsTable = () => {
+    // Get a fresh list of all companies
     const { investedCompanies } = getTableColumns();
+    const allCompanies = investedCompanies;
+    
+    // Don't update state here - just use the current state values
+    // (state is updated in the useEffect above)
 
     // Find the first row with any non-zero investment
     let firstNonZeroIndex = walletTransactions.findIndex(
-      tx => !tx.isNote && !allInvestmentsZero(tx.investments, investedCompanies)
+      tx => !tx.isNote && !allInvestmentsZero(tx.investments, allCompanies)
     );
     if (firstNonZeroIndex === -1) firstNonZeroIndex = walletTransactions.length;
 
     return (
       <div className="wallet-table-container">
+        {dropdownCompanies.length > 0 && (
+          <div className="companies-dropdown-container">
+            <button 
+              className="companies-dropdown-button"
+              onClick={() => setShowCompanyDropdown(!showCompanyDropdown)}
+            >
+              + {dropdownCompanies.length} More Companies
+            </button>
+            
+            {showCompanyDropdown && (
+              <div className="companies-dropdown-menu">
+                {dropdownCompanies.map(company => (
+                  <div 
+                    key={company} 
+                    className="company-dropdown-item"
+                    onClick={() => moveCompanyToVisible(company)}
+                  >
+                    {company}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+        
         <table className="wallet-table">
           <thead>
             <tr>
-              <th className='tid'>Transaction #</th>
+              <th className='tid'>tidNo.</th>
               <th>Amount in Wallet (₹)</th>
-              {investedCompanies.map(company => (
+              {visibleCompanies.map(company => (
                 <th key={company}>{company} (₹)</th>
               ))}
               <th>Extra Money Caused (₹)</th>
@@ -841,28 +964,56 @@ const handleAddMoneyToWallet = () => {
             {walletTransactions
               .slice(firstNonZeroIndex)
               .map((transaction, index) => (
-                transaction.isNote ? (
-                  <tr key={transaction.id} className="note-row">
-                    <td colSpan={3 + investedCompanies.length} className="transaction-note">
-                      {transaction.note}
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={transaction.id} className={parseFloat(transaction.walletAmount) < 0 ? "negative-balance" : ""}>
-                    <td>{transaction.id}</td>
-                    <td className="value-display">
-                      ₹{transaction.walletAmount}
-                    </td>
-                    {investedCompanies.map(company => (
-                      <td key={company} className="value-display">
-                        ₹{transaction.investments[company] || '0.000'}
+                <React.Fragment key={transaction.id}>
+                  {transaction.isNote ? (
+                    <tr className="note-row">
+                      <td colSpan={3 + visibleCompanies.length} className="transaction-note">
+                        {transaction.note}
                       </td>
-                    ))}
-                    <td className={`value-display ${parseFloat(transaction.extraMoneyCaused) >= 0 ? "profit" : "loss"}`}>
-                      ₹{transaction.extraMoneyCaused}
-                    </td>
-                  </tr>
-                )
+                    </tr>
+                  ) : (
+                    <>
+                      <tr className={`${parseFloat(transaction.walletAmount) < 0 ? "negative-balance" : ""} ${transaction.hasBuyTransactions ? "has-buy-transactions" : ""}`}>
+                        <td>
+                          {transaction.id}
+                          {transaction.hasBuyTransactions && transaction.buyTransactionCount > 1 && (
+                            <button 
+                              className="toggle-buy-transactions"
+                              onClick={() => toggleBuyTransactions(transaction.id)}
+                              title={expandedBuyRows.includes(transaction.id) ? "Collapse buy transactions" : "Expand buy transactions"}
+                            >
+                              {expandedBuyRows.includes(transaction.id) ? "▼" : "▶"}
+                            </button>
+                          )}
+                        </td>
+                        <td className="value-display">
+                          ₹{transaction.walletAmount}
+                        </td>
+                        {visibleCompanies.map(company => (
+                          <td key={company} className="value-display">
+                            ₹{transaction.investments[company] || '0.000'}
+                          </td>
+                        ))}
+                        <td className={`value-display ${parseFloat(transaction.extraMoneyCaused) >= 0 ? "profit" : "loss"}`}>
+                          ₹{transaction.extraMoneyCaused}
+                        </td>
+                      </tr>
+                      {/* Add expandable rows for individual buy transactions */}
+                      {transaction.hasBuyTransactions && 
+                       expandedBuyRows.includes(transaction.id) && 
+                       individualBuyTransactions[transaction.id] && 
+                       individualBuyTransactions[transaction.id].map((buyTx, idx) => (
+                        <tr key={`${transaction.id}-buy-${idx}`} className="individual-buy-transaction">
+                          <td className="buy-tx-id">{buyTx.transactionId}</td>
+                          <td colSpan={visibleCompanies.length + 2} className="buy-tx-details">
+                            Bought {buyTx.quantity} shares of {buyTx.companyName} at ₹{buyTx.price} 
+                            (Total: ₹{buyTx.totalCost.toFixed(2)}, Charges: ₹{buyTx.charges.toFixed(2)})
+                          </td>
+                        </tr>
+                      ))}
+                    </>
+                  )}
+                </React.Fragment>
               ))}
           </tbody>
         </table>

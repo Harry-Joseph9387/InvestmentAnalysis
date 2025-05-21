@@ -1,24 +1,158 @@
-body {
+/* Comprehensive Dark Theme - affects every pixel */
+:root {
+  --dark-bg: #121212;
+  --dark-surface: #1e1e1e;
+  --dark-surface-elevated: #252525;
+  --dark-primary: #bb86fc;
+  --dark-secondary: #03dac6;
+  --dark-error: #cf6679;
+  --dark-text-primary: rgba(255, 255, 255, 0.87);
+  --dark-text-secondary: rgba(255, 255, 255, 0.6);
+  --dark-text-disabled: rgba(255, 255, 255, 0.38);
+  --dark-border: #333;
+  --dark-divider: rgba(255, 255, 255, 0.12);
+  --dark-hover: #2c2c2c;
+  --dark-input-bg: #2d2d2d;
+  --dark-success: #4caf50;
+  --dark-warning: #ff9800;
+  --dark-info: #2196f3;
+  --dark-danger: #f44336;
+  --dark-shadow: rgba(0, 0, 0, 0.5);
+}
+
+/* Force dark theme on everything */
+html, body, #root, div, span, applet, object, iframe,
+h1, h2, h3, h4, h5, h6, p, blockquote, pre,
+a, abbr, acronym, address, big, cite, code,
+del, dfn, em, img, ins, kbd, q, s, samp,
+small, strike, strong, sub, sup, tt, var,
+b, u, i, center,
+dl, dt, dd, ol, ul, li,
+fieldset, form, label, legend,
+table, caption, tbody, tfoot, thead, tr, th, td,
+article, aside, canvas, details, embed, 
+figure, figcaption, footer, header, hgroup, 
+menu, nav, output, ruby, section, summary,
+time, mark, audio, video {
+  background-color: transparent;
+  color: var(--dark-text-primary);
+}
+
+* {
+  box-sizing: border-box;
+  scrollbar-width: thin;
+  scrollbar-color: #555 var(--dark-bg);
+}
+
+html, body {
+  background-color: var(--dark-bg);
   margin: 0;
+  padding: 0;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
     'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
     sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  min-height: 100%;
+  height: 100%;
+  overflow-x: hidden;
+}
+
+#root {
+  min-height: 100%;
+  background-color: var(--dark-bg);
+}
+
+input, select, textarea, button {
+  background-color: var(--dark-input-bg) !important;
+  color: var(--dark-text-primary) !important;
+  border-color: var(--dark-border) !important;
+}
+
+input::placeholder, textarea::placeholder {
+  color: var(--dark-text-disabled) !important;
+}
+
+input:focus, select:focus, textarea:focus {
+  outline-color: var(--dark-primary) !important;
+  box-shadow: 0 0 0 1px var(--dark-primary) !important;
+}
+
+a {
+  color: var(--dark-primary);
+  text-decoration: none;
+}
+
+a:hover {
+  color: #cabeff;
+}
+
+button {
+  cursor: pointer;
 }
 
 code {
-  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
-    monospace;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New', monospace;
+  color: var(--dark-secondary);
+  background-color: rgba(0, 0, 0, 0.2);
+  padding: 2px 4px;
+  border-radius: 4px;
 }
 
+/* Custom scrollbar for dark theme */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--dark-bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: #555;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* Override any possible white backgrounds */
+.App, div, section, header, footer, aside, nav, main, article {
+  background-color: transparent;
+}
+
+/* Force selection colors */
+::selection {
+  background-color: var(--dark-primary);
+  color: #000;
+}
+
+/* Modal backgrounds need to be extra dark */
+.modal-overlay {
+  background-color: rgba(0, 0, 0, 0.85) !important;
+}
+
+/* Force table cells to have dark backgrounds */
+th, td {
+  background-color: var(--dark-surface) !important;
+  color: var(--dark-text-primary) !important;
+}
+
+/* Ensure alternating rows are slightly different */
+tr:nth-child(even) td {
+  background-color: var(--dark-surface-elevated) !important;
+}
+
+/* Warning boxes with appropriate colors */
 .calculator-warning {
   margin-top: 10px;
   padding: 5px;
-  background-color: #fff3cd;
-  border: 1px solid #ffeeba;
+  background-color: rgba(255, 152, 0, 0.15) !important;
+  border: 1px solid rgba(255, 152, 0, 0.3) !important;
   border-radius: 4px;
-  color: #856404;
+  color: #ffb74d !important;
   font-size: 0.85rem;
   text-align: center;
 }
