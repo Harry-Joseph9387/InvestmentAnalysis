@@ -1522,23 +1522,48 @@ const saveAllData = () => {
             />
           )}
           
-          {/* Quick Transaction Form with Save Button */}
+          {/* Quick Transaction Form with Custom Number Inputs */}
           <div className="quick-transaction">
-            <input
-              type="number"
-              value={quickPrice}
-              onChange={e => setQuickPrice(e.target.value)}
-              placeholder="Price"
-              className="quick-input"
-              step="0.01"
-            />
-            <input
-              type="number"
-              value={quickQuantity}
-              onChange={e => setQuickQuantity(e.target.value)}
-              placeholder="Quantity"
-              className="quick-input"
-            />
+            <div className="number-input-container">
+              <input
+                type="number"
+                value={quickPrice}
+                onChange={e => setQuickPrice(e.target.value)}
+                placeholder="Price"
+                className="quick-input"
+                step="0.01"
+              />
+              <div className="number-input-spinner">
+                <button 
+                  className="spinner-button" 
+                  onClick={() => setQuickPrice(prev => (parseFloat(prev) || 0) + 1)}
+                >▲</button>
+                <button 
+                  className="spinner-button" 
+                  onClick={() => setQuickPrice(prev => Math.max((parseFloat(prev) || 0) - 1, 0))}
+                >▼</button>
+              </div>
+            </div>
+            <div className="number-input-container">
+              <input
+                type="number"
+                value={quickQuantity}
+                onChange={e => setQuickQuantity(e.target.value)}
+                placeholder="Quantity"
+                className="quick-input"
+                step="1"
+              />
+              <div className="number-input-spinner">
+                <button 
+                  className="spinner-button" 
+                  onClick={() => setQuickQuantity(prev => (parseFloat(prev) || 0) + 1)}
+                >▲</button>
+                <button 
+                  className="spinner-button" 
+                  onClick={() => setQuickQuantity(prev => (parseFloat(prev) || 0) - 1)}
+                >▼</button>
+              </div>
+            </div>
             <button 
               className="save-button"
               onClick={handleSaveTransactions}
@@ -1589,20 +1614,44 @@ const saveAllData = () => {
               )}
               <td>{transaction.id}</td>
               <td>
-                <input
-                  type="number"
-                  value={transaction.price}
-                  onChange={(e) => handleInputChange(index, 'price', e.target.value)}
-                  placeholder="Enter price"
-                />
+                <div className="number-input-container">
+                  <input
+                    type="number"
+                    value={transaction.price}
+                    onChange={(e) => handleInputChange(index, 'price', e.target.value)}
+                    step="0.01"
+                  />
+                  <div className="number-input-spinner">
+                    <button 
+                      className="spinner-button" 
+                      onClick={() => handleInputChange(index, 'price', (parseFloat(transaction.price) || 0) + 1)}
+                    >▲</button>
+                    <button 
+                      className="spinner-button" 
+                      onClick={() => handleInputChange(index, 'price', Math.max((parseFloat(transaction.price) || 0) - 1, 0))}
+                    >▼</button>
+                  </div>
+                </div>
               </td>
               <td>
-                <input
-                  type="number"
-                  value={transaction.quantity}
-                  onChange={(e) => handleInputChange(index, 'quantity', e.target.value)}
-                  placeholder="Enter quantity"
-                />
+                <div className="number-input-container">
+                  <input
+                    type="number"
+                    value={transaction.quantity}
+                    onChange={(e) => handleInputChange(index, 'quantity', e.target.value)}
+                    step="1"
+                  />
+                  <div className="number-input-spinner">
+                    <button 
+                      className="spinner-button" 
+                      onClick={() => handleInputChange(index, 'quantity', (parseFloat(transaction.quantity) || 0) + 1)}
+                    >▲</button>
+                    <button 
+                      className="spinner-button" 
+                      onClick={() => handleInputChange(index, 'quantity', (parseFloat(transaction.quantity) || 0) - 1)}
+                    >▼</button>
+                  </div>
+                </div>
               </td>
               <td>{transaction.totalShares?.toFixed(2) || '0.00'}</td>
               <td>{transaction.extraCharges?.toFixed(2) || '0.00'}</td>

@@ -784,3 +784,71 @@ h1 {
   from { transform: translateX(100%); opacity: 0; }
   to { transform: translateX(0); opacity: 1; }
 }
+
+/* Custom number input styling for both desktop and mobile */
+input[type="number"] {
+  -moz-appearance: textfield; /* Firefox */
+  appearance: textfield;
+  position: relative;
+}
+
+/* Chrome, Safari, Edge, Opera - restore spinners */
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+  -webkit-appearance: inner-spin-button !important;
+  opacity: 1;
+  height: 25px;
+  position: absolute;
+  right: 5px;
+  top: 50%;
+  transform: translateY(-50%);
+}
+
+/* Custom spinner buttons that work on all devices */
+.number-input-container {
+  position: relative;
+  display: inline-block;
+  width: 100%;
+}
+
+.number-input-spinner {
+  position: absolute;
+  right: 0;
+  top: 0;
+  bottom: 0;
+  width: 20px;
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid #ddd;
+}
+
+.spinner-button {
+  flex: 1;
+  background: #f5f5f5;
+  border: none;
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.spinner-button:first-child {
+  border-bottom: 1px solid #ddd;
+}
+
+.spinner-button:hover {
+  background: #e0e0e0;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .number-input-spinner {
+    width: 30px; /* Wider buttons for touch targets on mobile */
+  }
+  
+  /* Ensure inputs have enough space for spinners on mobile */
+  input[type="number"] {
+    padding-right: 35px;
+  }
+}
