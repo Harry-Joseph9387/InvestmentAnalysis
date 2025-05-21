@@ -11,6 +11,19 @@ const StockAnalysis = () => {
   const [showChargesModal, setShowChargesModal] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [selectedTransactions, setSelectedTransactions] = useState([]);
+  const [isNewCompanyMode, setIsNewCompanyMode] = useState(false);
+  const [quickPrice, setQuickPrice] = useState('');
+  const [quickQuantity, setQuickQuantity] = useState('');
+  const [showProfitLossModal, setShowProfitLossModal] = useState(false);
+  const [profitLossInfo, setProfitLossInfo] = useState({
+    sellValue: 0,
+    originalCost: 0,
+    buyingCharges: 0,
+    sellingCharges: 0,
+    totalCharges: 0,
+    profitLoss: 0,
+    quantity: 0
+  });
 
   // Load companies from localStorage when component mounts
   useEffect(() => {
@@ -212,6 +225,27 @@ const StockAnalysis = () => {
       return;
     }
     
+    // Get transaction details for the warning message
+    const transactionToDelete = transactions[index];
+    const price = parseFloat(transactionToDelete.price) || 0;
+    const quantity = parseFloat(transactionToDelete.quantity) || 0;
+      const isSellTransaction = quantity < 0;
+    const transactionType = isSellTransaction ? "SELL" : "BUY";
+    const absQuantity = Math.abs(quantity);
+    
+    // Show a confirmation dialog with transaction details
+    const confirmMessage = `Are you sure you want to delete this ${transactionType} transaction?\n\n` +
+      `Transaction #: ${transactionToDelete.id}\n` +
+      `Price: ₹${price.toFixed(2)}\n` +
+      `Quantity: ${absQuantity} shares\n` +
+      `Total Value: ₹${(price * absQuantity).toFixed(2)}\n\n` +
+      `This action cannot be undone.`;
+    
+    if (!window.confirm(confirmMessage)) {
+      console.log("Transaction deletion cancelled");
+      return;
+    }
+    
     try {
       // Capture the transaction being deleted
       const transactionIdToDelete = transactions[index].id;
@@ -229,11 +263,15 @@ const StockAnalysis = () => {
         id: i + 1
       }));
       
-      // First update the UI with the new transactions
+      // Calculate updated values for transactions
       const updatedTransactions = calculateUpdatedTransactions(renumberedTransactions);
+      
+      // First update the UI with the new transactions
       setTransactions(updatedTransactions);
       
-      // Now update the transaction history in localStorage AND the JSON file
+      // Now update the localStorage and transaction history
+      
+      // Get current companies data from localStorage
       const savedData = localStorage.getItem('companies');
       if (savedData && companyName) {
         const allCompanies = JSON.parse(savedData);
@@ -242,11 +280,7 @@ const StockAnalysis = () => {
         const historyIndex = allCompanies.findIndex(c => c.name === "_TransactionHistory");
         
         if (historyIndex >= 0) {
-          // Log for debugging
-          console.log("Found _TransactionHistory in companies data");
-          
           // Create a new array of transactions without the deleted one
-          // This is the critical part that needs fixing
           const updatedHistoryTransactions = allCompanies[historyIndex].transactions.filter(tx => {
             // Make sure we're not removing transactions from other companies
             if (tx.companyName !== companyName) {
@@ -257,8 +291,6 @@ const StockAnalysis = () => {
             return tx.transactionNumber !== transactionIdToDelete;
           });
           
-          console.log(`Before filtering: ${allCompanies[historyIndex].transactions.length}, After: ${updatedHistoryTransactions.length}`);
-          
           // Update transaction numbers for all transactions of this company that had higher numbers
           updatedHistoryTransactions.forEach(tx => {
             if (tx.companyName === companyName && tx.transactionNumber > transactionIdToDelete) {
@@ -266,21 +298,38 @@ const StockAnalysis = () => {
             }
           });
           
-          // Replace the transactions array
+          // Replace the transactions array in the history
           allCompanies[historyIndex].transactions = updatedHistoryTransactions;
+        }
+        
+        // Update the company's transaction data directly
+        const companyIndex = allCompanies.findIndex(c => c.name === companyName);
+        if (companyIndex >= 0) {
+          // Create updated company data
+          const updatedCompanyData = {
+            name: companyName,
+            transactions: updatedTransactions,
+            lastUpdated: new Date().toISOString()
+          };
           
-          // Save back to localStorage
+          // Update the company data in the array
+          allCompanies[companyIndex] = updatedCompanyData;
+          
+          // Save all updated data back to localStorage
           localStorage.setItem('companies', JSON.stringify(allCompanies));
-          
-          // Update companies state
+        
+          // Update the companies state
           setCompanies(allCompanies);
           
-          console.log("Transaction history updated in localStorage and JSON file");
+          console.log("Transaction deleted and changes saved automatically");
+        } else {
+          console.error(`Company ${companyName} not found in companies data`);
+          alert("Error updating company data. Please save changes manually.");
         }
+      } else {
+        console.error("No companies data found in localStorage");
+        alert("Error: Could not find companies data. Please save changes manually.");
       }
-      
-      // Auto-save the changes to update the company data
-      setTimeout(() => autoSaveChanges(), 100);
     } catch (error) {
       console.error("Error deleting transaction:", error);
       alert("An error occurred while deleting the transaction. Please try again.");
@@ -539,6 +588,7 @@ const StockAnalysis = () => {
     }
     
     setCompanyName('');
+    setIsNewCompanyMode(true);
     setTransactions([
       { id: 1, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
     ]);
@@ -940,10 +990,242 @@ const saveAllData = () => {
     setSelectedTransactions([]);
   };
 
+  // Modify the handleSaveTransactions function to include buying charges in profit/loss calculation
+  const handleSaveTransactions = () => {
+    if (!companyName.trim()) {
+      alert('Please select or enter a company name first');
+      return;
+    }
+    
+    // First check if we should add a new transaction
+    if (quickPrice && quickQuantity) {
+      const price = parseFloat(quickPrice);
+      const quantity = parseFloat(quickQuantity);
+      
+      // Check if this is a sell transaction (negative quantity)
+      const isSellTransaction = quantity < 0;
+      
+      // Get the next ID
+      const lastRow = transactions[transactions.length - 1];
+      const newId = lastRow.id + 1;
+      
+      // Create a new transaction object
+      const newTransaction = {
+        id: newId,
+        price: quickPrice,
+        quantity: quickQuantity,
+        totalInvestment: 0,
+        totalShares: 0,
+        averagePrice: 0,
+        extraCharges: 0,
+        totalExtraCharges: 0
+      };
+      
+      // Add this transaction to our array
+      const updatedTransactions = [...transactions, newTransaction];
+      
+      // Calculate the values
+      const calculatedTransactions = calculateUpdatedTransactions(updatedTransactions);
+      
+      // If it's a sell transaction, prepare the profit/loss info
+      if (isSellTransaction) {
+        // For a sell transaction, we need to calculate the profit/loss
+        const sellQuantity = Math.abs(quantity);
+        const sellValue = price * sellQuantity;
+        
+        // Find the cost basis using FIFO
+        let costBasisOfSoldShares = 0;
+        let buyingChargesTotal = 0;
+        let remainingToSell = sellQuantity;
+        let sharesForFifo = [];
+        
+        // Create FIFO tracking of all previous buy transactions
+        for (let i = 0; i < transactions.length; i++) {
+          const tx = transactions[i];
+          const txPrice = parseFloat(tx.price) || 0;
+          const txQuantity = parseFloat(tx.quantity) || 0;
+          const txExtraCharges = parseFloat(tx.extraCharges) || 0;
+          
+          // Only include buy transactions
+          if (txPrice > 0 && txQuantity > 0) {
+            sharesForFifo.push({
+              price: txPrice,
+              quantity: txQuantity,
+              remaining: txQuantity,
+              extraCharges: txExtraCharges,
+              extraChargesPerShare: txExtraCharges / txQuantity
+            });
+          }
+        }
+        
+        // Apply FIFO to calculate cost basis and include proportional buying charges
+        for (let j = 0; j < sharesForFifo.length && remainingToSell > 0; j++) {
+          const buyLot = sharesForFifo[j];
+          
+          if (buyLot.remaining > 0) {
+            const sharesToSellFromLot = Math.min(buyLot.remaining, remainingToSell);
+            
+            // Calculate cost basis of these shares
+            costBasisOfSoldShares += (buyLot.price * sharesToSellFromLot);
+            
+            // Add proportional buying charges for these shares
+            buyingChargesTotal += (buyLot.extraChargesPerShare * sharesToSellFromLot);
+            
+            // Reduce remaining shares in this lot
+            buyLot.remaining -= sharesToSellFromLot;
+            
+            // Reduce remaining shares to sell
+            remainingToSell -= sharesToSellFromLot;
+          }
+        }
+        
+        // Calculate extra charges for the sell transaction
+        const sellCharges = calculateExtraCharges(sellValue, quantity);
+        
+        // Calculate total charges (buying + selling)
+        const totalCharges = buyingChargesTotal + sellCharges;
+        
+        // Calculate profit/loss (includes both buying and selling charges)
+        const profitLoss = sellValue - costBasisOfSoldShares - totalCharges;
+        
+        // Set the profit/loss info for displaying
+        setProfitLossInfo({
+          sellValue: sellValue.toFixed(2),
+          originalCost: costBasisOfSoldShares.toFixed(2),
+          buyingCharges: buyingChargesTotal.toFixed(2),
+          sellingCharges: sellCharges.toFixed(2),
+          totalCharges: totalCharges.toFixed(2),
+          profitLoss: profitLoss.toFixed(2),
+          quantity: sellQuantity
+        });
+        
+        // Show the modal after state update
+        setShowProfitLossModal(true);
+      }
+      
+      // Save directly using a modified version of saveAllData that uses our calculated transactions
+      try {
+        // Use our already calculated transactions
+        const companyData = {
+          name: companyName,
+          transactions: calculatedTransactions,
+          lastUpdated: new Date().toISOString()
+        };
+        
+        // Get current companies
+        const currentCompanies = JSON.parse(localStorage.getItem('companies') || '[]');
+        
+        // Find if company already exists
+        const existingCompanyIndex = currentCompanies.findIndex(c => c.name === companyName);
+        
+        // Create updated companies array
+        let updatedCompanies;
+        if (existingCompanyIndex >= 0) {
+          updatedCompanies = [...currentCompanies];
+          updatedCompanies[existingCompanyIndex] = companyData;
+        } else {
+          updatedCompanies = [...currentCompanies, companyData];
+        }
+        
+        // Before saving, ensure transaction history is in sync with current transactions
+        const historyIndex = updatedCompanies.findIndex(c => c.name === "_TransactionHistory");
+        if (historyIndex >= 0) {
+          // Get current transaction IDs
+          const currentTransactionIds = calculatedTransactions.map(tx => tx.id);
+          
+          // Filter out transactions for this company that no longer exist in the current set
+          updatedCompanies[historyIndex].transactions = updatedCompanies[historyIndex].transactions.filter(tx => {
+            // Keep transactions that are not for this company
+            if (tx.companyName !== companyName) return true;
+            
+            // For this company, only keep transactions that exist in the current set
+            return currentTransactionIds.includes(tx.transactionNumber);
+          });
+        }
+        
+        // Save to localStorage
+        localStorage.setItem('companies', JSON.stringify(updatedCompanies));
+        
+        // Update state
+        setTransactions(calculatedTransactions);
+        setCompanies(updatedCompanies);
+        
+        // Record the new transaction
+        recordTransaction(companyName, newId);
+        
+        // Clear the inputs
+        setQuickPrice('');
+        setQuickQuantity('');
+        
+        // For sell transactions, the alert will show from the modal
+        if (!isSellTransaction) {
+          alert(`Transaction added and data saved for ${companyName}`);
+        }
+      } catch (error) {
+        console.error("Error saving data:", error);
+        alert("Error saving data. Please try again.");
+      }
+    } else {
+      // Just save the existing data
+      saveAllData();
+    }
+  };
+
+  // Add this effect to handle localStorage management for page visits
+  useEffect(() => {
+    let exitNotification = null;
+    let isExiting = false;
+    
+    // Show notification when the page becomes hidden
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden' && !isExiting) {
+        isExiting = true;
+        
+        // Set a timeout to clear data if user doesn't return
+        const clearTimer = setTimeout(() => {
+          localStorage.removeItem('companies');
+        }, 5000); // Give 5 seconds before clearing
+        
+        // If user returns, cancel the timer
+        const handleVisibilityReturn = () => {
+          if (document.visibilityState === 'visible') {
+            clearTimeout(clearTimer);
+            isExiting = false;
+            if (exitNotification) {
+              exitNotification.remove();
+              exitNotification = null;
+            }
+            document.removeEventListener('visibilitychange', handleVisibilityReturn);
+          }
+        };
+        
+        document.addEventListener('visibilitychange', handleVisibilityReturn);
+      }
+    };
+    
+    // Clear data when the page is unloading
+    const handleBeforeUnload = (event) => {
+      localStorage.removeItem('companies');
+      event.preventDefault();
+      event.returnValue = "Are you sure you want to leave? Your data will be cleared.";
+      return "Are you sure you want to leave? Your data will be cleared.";
+    };
+    
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('beforeunload', handleBeforeUnload);
+    
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      if (exitNotification) {
+        exitNotification.remove();
+      }
+    };
+  }, []);
+
   return (
     <div className="stock-analysis-container">
       <h1>Stock Investment Analysis</h1>
-      <p>Aim for investing in stock market is not to make living out of it but rather to overcome the inflation so i dont need to worry on medium changes in stock price</p>
       <div className="top-controls">
         <button 
           className="charges-info-button"
@@ -1062,7 +1344,7 @@ const saveAllData = () => {
               </div>
               <div className="charge-item">
                 <span className="charge-name">IPF:</span>
-                <span className="charge-value">0.0001%</span>
+                <span className="charge-name">0.0001%</span>
               </div>
               <div className="charge-item">
                 <span className="charge-name">Depository:</span>
@@ -1071,6 +1353,66 @@ const saveAllData = () => {
               <div className="charge-item">
                 <span className="charge-name">Groww Fee:</span>
                 <span className="charge-value">₹15 (only if transaction value ≥ ₹100)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showProfitLossModal && (
+        <div className="modal-overlay">
+          <div className="modal-content profit-loss-modal">
+            <div className="modal-header">
+              <h2>Transaction Summary</h2>
+              <button 
+                className="modal-close"
+                onClick={() => setShowProfitLossModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="profit-loss-details">
+              <h3>Sell Transaction for {companyName}</h3>
+              
+              <div className="transaction-summary">
+                <div className="summary-item">
+                  <span className="summary-label">Sold Quantity:</span>
+                  <span className="summary-value">{profitLossInfo.quantity} shares</span>
+                </div>
+                
+                <div className="summary-item">
+                  <span className="summary-label">Selling Value:</span>
+                  <span className="summary-value">₹{profitLossInfo.sellValue}</span>
+                </div>
+                
+                <div className="summary-item">
+                  <span className="summary-label">Original Cost:</span>
+                  <span className="summary-value">₹{profitLossInfo.originalCost}</span>
+                </div>
+                
+                <div className="summary-item">
+                  <span className="summary-label">Buying Charges:</span>
+                  <span className="summary-value">₹{profitLossInfo.buyingCharges}</span>
+                </div>
+                
+                <div className="summary-item">
+                  <span className="summary-label">Selling Charges:</span>
+                  <span className="summary-value">₹{profitLossInfo.sellingCharges}</span>
+                </div>
+                
+                <div className="summary-item">
+                  <span className="summary-label">Total Charges:</span>
+                  <span className="summary-value">₹{profitLossInfo.totalCharges}</span>
+                </div>
+                
+                <div className="summary-item result">
+                  <span className="summary-label">Profit/Loss:</span>
+                  <span className={`summary-value ${parseFloat(profitLossInfo.profitLoss) >= 0 ? "profit" : "loss"}`}>
+                    {parseFloat(profitLossInfo.profitLoss) >= 0 ? 
+                      `Profit: ₹${profitLossInfo.profitLoss}` : 
+                      `Loss: ₹${Math.abs(parseFloat(profitLossInfo.profitLoss)).toFixed(2)}`}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
@@ -1128,39 +1470,49 @@ const saveAllData = () => {
 
       <div className="company-controls">
         <div className="company-input">
-          <select
-            value={companyName ? companyName : "__new__"}
-            onChange={e => {
-              const selectedName = e.target.value;
-              if (selectedName === "__new__") {
-                // Just clear the company name and reset transactions
-                setCompanyName('');
-                setTransactions([
-                  { id: 1, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
-                ]);
-              } else {
-                // Load existing company
-                setCompanyName(selectedName);
-                const selectedCompany = companies.find(c => c.name === selectedName);
-                if (selectedCompany) {
-                  loadCompanyData(selectedCompany, null);
+          <div className="company-select-container">
+            <select
+              value={companyName ? companyName : "__new__"}
+              onChange={e => {
+                const selectedName = e.target.value;
+                if (selectedName === "__new__") {
+                  setCompanyName('');
+                  setIsNewCompanyMode(true);
+                  setTransactions([
+                    { id: 1, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
+                  ]);
+                } else {
+                  setCompanyName(selectedName);
+                  setIsNewCompanyMode(false);
+                  const selectedCompany = companies.find(c => c.name === selectedName);
+                  if (selectedCompany) {
+                    loadCompanyData(selectedCompany, null);
+                  }
                 }
-              }
-            }}
-            className="company-select"
-          >
-            <option value="__new__">+ New Company</option>
-            {companies
-              .filter(company => company.name !== "_TransactionHistory")
-              .map((company, index) => (
-                <option key={index} value={company.name}>
-                  {company.name}
-                </option>
-              ))}
-          </select>
+              }}
+              className="company-select"
+            >
+              <option value="__new__">+ New Company</option>
+              {companies
+                .filter(company => company.name !== "_TransactionHistory")
+                .map((company, index) => (
+                  <option key={index} value={company.name}>
+                    {company.name}
+                  </option>
+                ))}
+            </select>
+            
+            {!isNewCompanyMode && transactions.length > 0 && (
+              <div className="total-shares-display">
+                <span className="total-shares-label">Total Shares:</span>
+                <span className="total-shares-value">
+                  {transactions[transactions.length - 1]?.totalShares?.toFixed(2) || '0.00'}
+                </span>
+              </div>
+            )}
+          </div>
           
-          {/* Show input only when new company mode is active */}
-          {!companies.some(c => c.name === companyName) && (
+          {isNewCompanyMode && (
             <input
               type="text"
               value={companyName}
@@ -1170,12 +1522,33 @@ const saveAllData = () => {
             />
           )}
           
-          <button className="save-button" onClick={saveAllData}>
-            Save Transactions
-          </button>
+          {/* Quick Transaction Form with Save Button */}
+          <div className="quick-transaction">
+            <input
+              type="number"
+              value={quickPrice}
+              onChange={e => setQuickPrice(e.target.value)}
+              placeholder="Price"
+              className="quick-input"
+              step="0.01"
+            />
+            <input
+              type="number"
+              value={quickQuantity}
+              onChange={e => setQuickQuantity(e.target.value)}
+              placeholder="Quantity"
+              className="quick-input"
+            />
+            <button 
+              className="save-button"
+              onClick={handleSaveTransactions}
+              title="Save Transactions"
+            >
+              Save Transactions
+            </button>
+          </div>
           
-          {/* Add delete button that shows only when an existing company is selected */}
-          {companies.some(c => c.name === companyName) && (
+          {companies.some(c => c.name === companyName) && !isNewCompanyMode && (
             <button
               className="delete-company-button"
               onClick={e => deleteCompany(companyName, e)}
@@ -1276,9 +1649,6 @@ const saveAllData = () => {
           </tr>
         </tfoot>
       </table>
-      <button className="add-row-button" onClick={addNewRow}>
-        Add Transaction
-      </button>
     </div>
   );
 };
