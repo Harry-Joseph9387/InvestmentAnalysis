@@ -13,7 +13,7 @@
   line-height: 1.6;
   background-color: black;
   border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 10px var(--dark-shadow);
 }
 
 .wallet-table-container {
@@ -21,7 +21,7 @@
   /* width: 100vw; */
   overflow-y: auto;
   margin-top: 0;
-  border: 1px solid #ddd;
+  border: 1px solid var(--dark-border);
   border-top: none;
   border-radius: 0 0 5px 5px;
 }
@@ -43,25 +43,28 @@
 .wallet-table td {
   padding: 8px 6px;
   text-align: left;
-  border: 1px solid #ddd;
+  border: 1px solid var(--dark-border);
   font-weight: 500;
+  color: var(--dark-text-primary);
 }
 
 .wallet-table th {
-  background-color: #f8f9fa;
+  background-color: var(--dark-surface-elevated);
   font-weight: 700;
   font-size: 15px;
   padding: 10px 8px;
   font-family: 'Montserrat', 'Arial', sans-serif;
-  box-shadow: 0 2px 2px -1px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 2px -1px var(--dark-shadow);
 }
 
 .wallet-table input[type="number"] {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--dark-border);
   border-radius: 4px;
   text-align: center;
+  background-color: var(--dark-input-bg);
+  color: var(--dark-text-primary);
 }
 
 .action-buttons {
@@ -76,10 +79,11 @@
   cursor: pointer;
   font-size: 1.2rem;
   padding: 0.3rem;
+  color: var(--dark-text-primary);
 }
 
 .delete-transaction-button {
-  background-color: #ff4444;
+  background-color: var(--dark-danger);
   color: white;
   border: none;
   width: 30px;
@@ -93,11 +97,11 @@
 }
 
 .delete-transaction-button:hover {
-  background-color: #cc0000;
+  background-color: #ff6b6b;
 }
 
 .note-row {
-  background-color: #f0f8ff;
+  background-color: var(--dark-surface-elevated);
 }
 
 .note-input-container {
@@ -109,28 +113,30 @@
 .note-input {
   flex: 1;
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--dark-border);
   border-radius: 4px;
+  background-color: var(--dark-input-bg);
+  color: var(--dark-text-primary);
 }
 
 .save-note-button {
   padding: 0.5rem 1rem;
-  background-color: #4caf50;
-  color: white;
+  background-color: var(--dark-success);
+  color: black;
   border: none;
   border-radius: 4px;
   cursor: pointer;
 }
 
 .save-note-button:hover {
-  background-color: #388e3c;
+  background-color: #65d669;
 }
 
 .note-display {
   text-align: left;
   padding: 0.5rem 1rem;
-  background-color: #fff3cd;
-  color: #856404;
+  background-color: rgba(255, 243, 205, 0.1);
+  color: #ffb74d;
   font-style: italic;
 }
 
@@ -142,8 +148,8 @@
   display: block;
   margin: 1rem auto;
   padding: 0.8rem 1.5rem;
-  background-color: #2196f3;
-  color: white;
+  background-color: var(--dark-primary);
+  color: black;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -151,7 +157,7 @@
 }
 
 .add-row-button:hover {
-  background-color: #1976d2;
+  background-color: #cabeff;
 }
 
 .wallet-header {
@@ -228,11 +234,14 @@
 
 .info-button {
   padding: 6px 12px;
-  background-color: #f8f9fa;
-  border: 1px solid #ddd;
+  background-color: transparent;
+  border: none;
   border-radius: 4px;
   cursor: pointer;
   font-size: 16px;
+  top:30px;
+  left:20px;
+  position: absolute;
 }
 
 .info-button:hover {
@@ -253,7 +262,7 @@
 }
 
 .modal-content {
-  background-color: white;
+  background-color: black;
   border-radius: 8px;
   max-width: 600px;
   width: 90%;
@@ -276,7 +285,7 @@
 
 .modal-header h2 {
   margin: 0;
-  color: #333;
+  color: white;
 }
 
 .modal-close {
@@ -358,7 +367,7 @@
 .wallet-actions-section {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 20px;
+  /* margin-bottom: 20px; */
   flex-wrap: wrap;
   gap: 10px;
 }
@@ -372,7 +381,7 @@
 
 .tab-button {
   padding: 10px 20px;
-  background-color: #f8f9fa;
+  background-color: black;
   border: 1px solid #ddd;
   border-bottom: none;
   border-radius: 4px 4px 0 0;
@@ -391,8 +400,8 @@
 }
 
 .tab-button.active {
-  background-color: #fff;
-  color: #007bff;
+  background-color: black;
+  color:white ;
   border-bottom: 1px solid #fff;
   z-index: 2;
 }
@@ -406,16 +415,16 @@
 
 .deposit-input, .withdraw-input {
   flex: 1;
-  padding: 12px 14px;
+  padding: 8px 10px;
   border: 1px solid #ccc;
   border-radius: 4px;
   margin-right: 10px;
-  font-size: 17px;
+  /* font-size: 17px; */
   font-family: 'Roboto', sans-serif;
 }
 
 .deposit-button, .withdraw-button {
-  padding: 12px 18px;
+  padding: 8px 14px;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -503,9 +512,12 @@
   border: none;
   font-size: 24px;
   cursor: pointer;
-  padding: 0 10px;
-  margin-right: 5px;
+  /* padding: 0 10px; */
+  /* margin-right: 5px; */
   transition: transform 0.2s;
+  position: absolute;
+  right:20px;
+  top:20px;
 }
 
 .reminder-button:hover {
@@ -515,92 +527,293 @@
 .reminder-modal {
   width: 90%;
   max-width: 600px;
+  background-color: #1a1a1a;
+  border: 1px solid #333;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.modal-header {
+  background-color: #242424;
+  border-bottom: 1px solid #444;
+  padding: 18px 24px;
+}
+
+.modal-header h2 {
+  color: #e0e0e0;
+  font-size: 20px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+}
+
+.modal-close {
+  background-color: rgba(255, 255, 255, 0.1);
+  color: #e0e0e0;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+
+.modal-close:hover {
+  background-color: rgba(255, 255, 255, 0.2);
+  transform: scale(1.1);
+}
+
+.modal-body {
+  padding: 24px;
+  color: #e0e0e0;
 }
 
 .reminder-form {
-  margin-bottom: 20px;
-  padding-bottom: 20px;
-  border-bottom: 1px solid #ddd;
+  margin-bottom: 30px;
+  padding-bottom: 25px;
+  border-bottom: 1px solid #444;
+  background-color: #2a2a2a;
+  padding: 20px;
+  border-radius: 8px;
 }
 
 .form-group {
-  margin-bottom: 15px;
+  margin-bottom: 20px;
 }
 
 .form-group label {
   display: block;
-  margin-bottom: 5px;
-  font-weight: 600;
+  margin-bottom: 8px;
+  font-weight: 500;
+  color: #bbb;
+  font-size: 14px;
+  letter-spacing: 0.5px;
 }
 
 .form-group input,
 .form-group textarea {
   width: 100%;
-  padding: 8px 12px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+  padding: 12px 16px;
+  background-color: #333;
+  border: 1px solid #444;
+  border-radius: 6px;
+  color: #fff;
   font-size: 14px;
+  transition: all 0.2s;
+}
+
+.form-group input:focus,
+.form-group textarea:focus {
+  border-color: #666;
+  outline: none;
+  box-shadow: 0 0 0 2px rgba(120, 120, 120, 0.3);
+}
+
+.form-group input::placeholder,
+.form-group textarea::placeholder {
+  color: #777;
 }
 
 .add-reminder-button {
-  padding: 10px 15px;
-  background-color: #4c6ef5;
+  background: linear-gradient(135deg, #5c6bc0, #3949ab);
   color: white;
   border: none;
-  border-radius: 4px;
+  border-radius: 6px;
+  padding: 14px 20px;
   cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s;
+  font-size: 15px;
+  font-weight: 500;
+  letter-spacing: 0.5px;
+  transition: all 0.3s;
+  box-shadow: 0 4px 12px rgba(63, 81, 181, 0.3);
+  width: 100%;
+  margin-top: 10px;
 }
 
 .add-reminder-button:hover {
-  background-color: #3b5bdb;
+  background: linear-gradient(135deg, #7986cb, #5c6bc0);
+  box-shadow: 0 6px 16px rgba(63, 81, 181, 0.4);
+  transform: translateY(-2px);
+}
+
+.add-reminder-button:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(63, 81, 181, 0.4);
+}
+
+.reminders-list {
+  background-color: #2a2a2a;
+  border-radius: 8px;
+  padding: 20px;
+  border: 1px solid #444;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
 }
 
 .reminders-list h3 {
   margin-top: 0;
-  margin-bottom: 15px;
+  margin-bottom: 20px;
   font-size: 18px;
+  color: #e0e0e0;
+  display: flex;
+  align-items: center;
+}
+
+.reminders-list h3::before {
+  content: '🔔';
+  margin-right: 8px;
+  font-size: 16px;
 }
 
 .no-reminders {
   font-style: italic;
-  color: #666;
+  color: #888;
+  padding: 20px;
+  text-align: center;
+  background-color: #222;
+  border-radius: 6px;
+  border: 1px dashed #444;
 }
 
 .reminders-table {
   width: 100%;
   border-collapse: collapse;
-}
-
-.reminders-table th,
-.reminders-table td {
-  border: 1px solid #ddd;
-  padding: 8px 12px;
-  text-align: left;
+  margin-top: 10px;
+  border: 1px solid #444;
+  border-radius: 6px;
+  overflow: hidden;
 }
 
 .reminders-table th {
-  background-color: #f8f9fa;
-  font-weight: 600;
+  background-color: #333;
+  color: #bbb;
+  font-weight: 500;
+  padding: 12px 16px;
+  text-align: left;
+  text-transform: uppercase;
+  font-size: 12px;
+  letter-spacing: 1px;
+  border: 1px solid #444;
+}
+
+.reminders-table th:first-child {
+  border-top-left-radius: 6px;
+}
+
+.reminders-table th:last-child {
+  border-top-right-radius: 6px;
+}
+
+.reminders-table td {
+  padding: 14px 16px;
+  border: 1px solid #444;
+  color: #e0e0e0;
+  vertical-align: middle;
+}
+
+.reminders-table tbody tr:nth-child(odd) {
+  background-color: #262626;
+}
+
+.reminders-table tbody tr:nth-child(even) {
+  background-color: #2d2d2d;
+}
+
+.reminder-row {
+  transition: background-color 0.2s;
+}
+
+.reminder-row:hover {
+  background-color: #333 !important;
+}
+
+.reminder-tag {
+  display: inline-block;
+  padding: 6px 12px;
+  border-radius: 30px;
+  font-size: 12px;
+  font-weight: 500;
+  text-align: center;
+  color: white;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.2);
+}
+
+.reminder-tag.buy {
+  background: linear-gradient(135deg, #4caf50, #388e3c);
+}
+
+.reminder-tag.sell {
+  background: linear-gradient(135deg, #f44336, #d32f2f);
 }
 
 .delete-reminder-button {
-  background-color: #ff6b6b;
+  background-color: rgba(244, 67, 54, 0.7);
   color: white;
   border: none;
-  width: 25px;
-  height: 25px;
+  width: 28px;
+  height: 28px;
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
   font-size: 16px;
+  transition: all 0.2s;
 }
 
 .delete-reminder-button:hover {
-  background-color: #fa5252;
+  background-color: rgba(244, 67, 54, 0.9);
+  transform: scale(1.1);
+}
+
+.reminders-count {
+  background-color: #333;
+  color: #bbb;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 12px;
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+}
+
+/* Transaction type selector with improved styling */
+.transaction-type-selector {
+  display: flex;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.transaction-type-button {
+  flex: 1;
+  padding: 12px 15px;
+  border: 1px solid #444;
+  border-radius: 6px;
+  background-color: #333;
+  color: #ccc;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.3s;
+}
+
+.transaction-type-button.active {
+  border-color: transparent;
+}
+
+.transaction-type-button.active:first-child {
+  background: linear-gradient(135deg, #388e3c, #2e7d32);
+  box-shadow: 0 4px 12px rgba(56, 142, 60, 0.3);
+  color: white;
+}
+
+.transaction-type-button.active:last-child {
+  background: linear-gradient(135deg, #d32f2f, #c62828);
+  box-shadow: 0 4px 12px rgba(211, 47, 47, 0.3);
+  color: white;
+}
+
+.transaction-type-button:hover:not(.active) {
+  background-color: #3a3a3a;
 }
 
 /* Company dropdown styles */
@@ -611,23 +824,25 @@
 }
 
 .companies-dropdown-button {
-  background-color: #f0f0f0;
+  background-color: black;
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 5px 10px;
   cursor: pointer;
   font-size: 0.9rem;
+  color: white;
+
 }
 
 .companies-dropdown-button:hover {
-  background-color: #e0e0e0;
+  background-color: #6d6d6d;
 }
 
 .companies-dropdown-menu {
   position: absolute;
   right: 0;
   top: 100%;
-  background-color: white;
+  background-color: black;
   border: 1px solid #ccc;
   border-radius: 4px;
   box-shadow: 0 2px 10px rgba(0,0,0,0.1);
@@ -641,6 +856,8 @@
   padding: 8px 12px;
   cursor: pointer;
   border-bottom: 1px solid #eee;
+  color: #e6dfdf;
+
 }
 
 .company-dropdown-item:last-child {
@@ -648,7 +865,7 @@
 }
 
 .company-dropdown-item:hover {
-  background-color: #f5f5f5;
+  background-color: #777777;
 }
 
 /* Responsive styles */
@@ -733,4 +950,46 @@
 
 .buy-tx-details {
   border-bottom: 1px dashed #ddd;
+}
+
+/* Add subtle background colors to reminder rows */
+.reminder-row {
+  transition: background-color 0.2s;
+}
+
+.reminder-row:hover {
+  background-color: #f5f5f5;
+}
+
+.reminder-row.reminder-buy {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.reminder-row.reminder-sell {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+.reminder-row.reminder-urgent {
+  background-color: rgba(255, 152, 0, 0.1);
+}
+
+.reminder-row.reminder-watch {
+  background-color: rgba(33, 150, 243, 0.1);
+}
+
+/* Add a subtle pulse animation to the reminder button to draw attention */
+@keyframes pulse {
+  0% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.1);
+  }
+  70% {
+    box-shadow: 0 0 0 10px rgba(255, 255, 255, 0);
+  }
+  100% {
+    box-shadow: 0 0 0 0 rgba(255, 255, 255, 0);
+  }
+}
+
+.reminder-button {
+  animation: pulse 2s infinite;
 }

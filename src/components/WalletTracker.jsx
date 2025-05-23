@@ -27,8 +27,9 @@ const WalletTracker = () => {
   const [showReminderModal, setShowReminderModal] = useState(false);
   const [reminders, setReminders] = useState([]);
   const [reminderStock, setReminderStock] = useState('');
+  const [reminderQuantity, setReminderQuantity] = useState('');
   const [reminderPrice, setReminderPrice] = useState('');
-  const [reminderNote, setReminderNote] = useState('');
+  const [reminderType, setReminderType] = useState('buy');
 
   // Add these state variables at the top of the component
   const [windowWidth, setWindowWidth] = useState(window.innerWidth);
@@ -74,14 +75,21 @@ const WalletTracker = () => {
     });
     
     // Load reminders from localStorage
-    const savedReminders = localStorage.getItem('stockReminders');
-    if (savedReminders) {
-      try {
-        setReminders(JSON.parse(savedReminders));
-      } catch (error) {
-        console.error("Error parsing reminders from localStorage:", error);
+    const loadRemindersFromStorage = () => {
+      const savedReminders = localStorage.getItem('stockReminders');
+      if (savedReminders) {
+        try {
+          const parsedReminders = JSON.parse(savedReminders);
+          console.log("Loading reminders from localStorage:", parsedReminders);
+          setReminders(parsedReminders);
+        } catch (error) {
+          console.error("Error parsing reminders from localStorage:", error);
+        }
       }
-    }
+    };
+    
+    // Initial reminders load
+    loadRemindersFromStorage();
     
     return () => {
       window.removeEventListener('storage', loadCompaniesFromStorage);
@@ -550,59 +558,59 @@ const handleAddMoneyToWallet = () => {
       return;
     }
     
-      // Check if this is the first transaction or wallet is empty
-      if (walletTransactions.length === 0) {
-        // Create an initial wallet structure with empty investments
-        const initialInvestments = {};
-        companyNames.forEach(name => {
-          if (name !== "_TransactionHistory") {
-            initialInvestments[name] = '0';
-          }
-        });
-        
-        // Create a note row for the first deposit
-        const noteRow = {
-          id: `note-1`,
-          note: `Added ₹${amount.toFixed(3)} to wallet`,
-          isNote: true
-        };
-        
-        // Create the transaction row
-        const newTransaction = {
-          id: 1,
-          walletAmount: amount.toFixed(3),
-          investments: initialInvestments,
-          extraMoneyCaused: '0.000',
-          isNote: false
-        };
-        
-        // Set wallet transactions directly
-        setWalletTransactions([noteRow, newTransaction]);
-      } else {
-        // Normal case - existing transactions
-    const lastTransaction = walletTransactions[walletTransactions.length - 1];
-        const newWalletAmount = (parseFloat(lastTransaction.walletAmount) + amount).toFixed(3);
-    const nextId = lastTransaction.id + 1;
-    
-    // Create a note row
-    const noteRow = {
-      id: `note-${nextId}`,
-          note: `Added ₹${amount.toFixed(3)} to wallet`,
-      isNote: true
-    };
-    
-    // Create the transaction row
-    const newTransaction = {
-      id: nextId,
-      walletAmount: newWalletAmount,
-      investments: {...lastTransaction.investments},
-          extraMoneyCaused: lastTransaction.extraMoneyCaused || '0.000',
-      isNote: false
-    };
-    
-    // Update transaction rows
-    setWalletTransactions([...walletTransactions, noteRow, newTransaction]);
-      }
+    // Check if this is the first transaction or wallet is empty
+    if (walletTransactions.length === 0) {
+      // Create an initial wallet structure with empty investments
+      const initialInvestments = {};
+      companyNames.forEach(name => {
+        if (name !== "_TransactionHistory") {
+          initialInvestments[name] = '0';
+        }
+      });
+      
+      // Create a note row for the first deposit
+      const noteRow = {
+        id: `note-1`,
+        note: `Added ₹${amount.toFixed(3)} to wallet`,
+        isNote: true
+      };
+      
+      // Create the transaction row
+      const newTransaction = {
+        id: 1,
+        walletAmount: amount.toFixed(3),
+        investments: initialInvestments,
+        extraMoneyCaused: '0.000',
+        isNote: false
+      };
+      
+      // Set wallet transactions directly
+      setWalletTransactions([noteRow, newTransaction]);
+    } else {
+      // Normal case - existing transactions
+      const lastTransaction = walletTransactions[walletTransactions.length - 1];
+      const newWalletAmount = (parseFloat(lastTransaction.walletAmount) + amount).toFixed(3);
+      const nextId = lastTransaction.id + 1;
+      
+      // Create a note row
+      const noteRow = {
+        id: `note-${nextId}`,
+        note: `Added ₹${amount.toFixed(3)} to wallet`,
+        isNote: true
+      };
+      
+      // Create the transaction row
+      const newTransaction = {
+        id: nextId,
+        walletAmount: newWalletAmount,
+        investments: {...lastTransaction.investments},
+        extraMoneyCaused: lastTransaction.extraMoneyCaused || '0.000',
+        isNote: false
+      };
+      
+      // Update transaction rows
+      setWalletTransactions([...walletTransactions, noteRow, newTransaction]);
+    }
     
     // Create a wallet deposit transaction in the main transaction history
     const timestamp = Date.now();
@@ -625,7 +633,7 @@ const handleAddMoneyToWallet = () => {
       companyName: "Wallet",
       transactionNumber: timestamp,
       type: "deposit",
-        amount: amount.toFixed(3),
+      amount: amount.toFixed(3),
       date: new Date().toISOString()
     });
     
@@ -1082,42 +1090,97 @@ const handleAddMoneyToWallet = () => {
     );
   };
 
-  // Add a function to handle adding a reminder
+  // Add this effect to listen for imported reminders
+  useEffect(() => {
+    const handleRemindersImported = (event) => {
+      console.log("Reminders-imported event received", event.detail);
+      if (event.detail && event.detail.reminders) {
+        setReminders(event.detail.reminders);
+        console.log("Updated reminders state with imported data:", event.detail.reminders);
+      }
+    };
+    
+    // Listen for the custom event
+    window.addEventListener('reminders-imported', handleRemindersImported);
+    
+    return () => {
+      window.removeEventListener('reminders-imported', handleRemindersImported);
+    };
+  }, []);
+
+  // Also add this effect to listen for localStorage changes
+  useEffect(() => {
+    const handleStorageChange = (event) => {
+      if (event.key === 'stockReminders') {
+        try {
+          const updatedReminders = JSON.parse(event.newValue || '[]');
+          console.log("stockReminders changed in localStorage:", updatedReminders);
+          setReminders(updatedReminders);
+        } catch (error) {
+          console.error("Error parsing reminders from storage event:", error);
+        }
+      }
+    };
+    
+    window.addEventListener('storage', handleStorageChange);
+    
+    return () => {
+      window.removeEventListener('storage', handleStorageChange);
+    };
+  }, []);
+
+  // Update the handleAddReminder function
   const handleAddReminder = () => {
-    if (!reminderStock || !reminderPrice) {
-      alert("Please enter both stock name and target price");
+    if (!reminderStock || !reminderQuantity || !reminderPrice) {
+      alert("Please enter stock name, quantity, and price");
       return;
     }
 
     const newReminder = {
       id: Date.now(),
       stock: reminderStock,
+      quantity: reminderQuantity,
       price: reminderPrice,
-      note: reminderNote || "",
+      type: reminderType,
       createdAt: new Date().toISOString()
     };
 
+    // Update local state
     const updatedReminders = [...reminders, newReminder];
     setReminders(updatedReminders);
     
-    // Save to localStorage
+    // Save to localStorage so it's included in the exported JSON file
     localStorage.setItem('stockReminders', JSON.stringify(updatedReminders));
+    
+    // Get the companies data to update with new reminder
+    const savedCompanies = localStorage.getItem('companies');
+    if (savedCompanies) {
+      try {
+        // Update the data in localStorage so it's picked up by the export function
+        // This step ensures reminders are always part of the same data structure
+        
+        // Since we use localStorage as the intermediary storage before export,
+        // we don't need to modify the actual JSON file directly
+      } catch (error) {
+        console.error("Error updating companies data with reminders:", error);
+      }
+    }
     
     // Clear the inputs
     setReminderStock('');
+    setReminderQuantity('');
     setReminderPrice('');
-    setReminderNote('');
     
     setSaveStatus('Reminder added successfully');
     setTimeout(() => setSaveStatus(''), 3000);
   };
 
-  // Add a function to delete a reminder
+  // Update the handleDeleteReminder function
   const handleDeleteReminder = (id) => {
     const updatedReminders = reminders.filter(reminder => reminder.id !== id);
     setReminders(updatedReminders);
     
-    // Save to localStorage
+    // Save to localStorage so it's included in the exported JSON file
     localStorage.setItem('stockReminders', JSON.stringify(updatedReminders));
     
     setSaveStatus('Reminder deleted');
@@ -1127,7 +1190,7 @@ const handleAddMoneyToWallet = () => {
   return (
     <div className="wallet-tracker-container">
       <div className="wallet-header">
-        <h1>Wallet and Investment Tracker</h1>
+        {/* <h1>Wallet and Investment Tracker</h1> */}
         <div className="header-actions">
           <button 
             className="reminder-button"
@@ -1143,9 +1206,7 @@ const handleAddMoneyToWallet = () => {
           >
             ℹ️
           </button>
-          <button className="refresh-button" onClick={refreshData}>
-            Refresh Data
-          </button>
+         
           {saveStatus && (
             <span className={`save-status ${saveStatus.includes('Error') ? 'error' : 'success'}`}>
               {saveStatus}
@@ -1210,7 +1271,7 @@ const handleAddMoneyToWallet = () => {
         <div className="modal-overlay">
           <div className="modal-content reminder-modal">
             <div className="modal-header">
-              <h2>Stock Buy Reminders</h2>
+              <h2>Stock Reminders</h2>
               <button 
                 className="modal-close"
                 onClick={() => setShowReminderModal(false)}
@@ -1221,7 +1282,7 @@ const handleAddMoneyToWallet = () => {
             <div className="modal-body">
               <div className="reminder-form">
                 <div className="form-group">
-                  <label htmlFor="reminderStock">Stock Name:</label>
+                  <label htmlFor="reminderStock">Stock Name</label>
                   <input 
                     type="text" 
                     id="reminderStock"
@@ -1230,8 +1291,20 @@ const handleAddMoneyToWallet = () => {
                     placeholder="Enter stock name"
                   />
                 </div>
+                
                 <div className="form-group">
-                  <label htmlFor="reminderPrice">Target Price (₹):</label>
+                  <label htmlFor="reminderQuantity">Quantity</label>
+                  <input 
+                    type="number" 
+                    id="reminderQuantity"
+                    value={reminderQuantity}
+                    onChange={(e) => setReminderQuantity(e.target.value)}
+                    placeholder="Enter quantity"
+                  />
+                </div>
+                
+                <div className="form-group">
+                  <label htmlFor="reminderPrice">At what price (₹)</label>
                   <input 
                     type="number" 
                     id="reminderPrice"
@@ -1240,16 +1313,27 @@ const handleAddMoneyToWallet = () => {
                     placeholder="Enter target price"
                   />
                 </div>
+                
                 <div className="form-group">
-                  <label htmlFor="reminderNote">Note (optional):</label>
-                  <textarea 
-                    id="reminderNote"
-                    value={reminderNote}
-                    onChange={(e) => setReminderNote(e.target.value)}
-                    placeholder="Add note about this reminder"
-                    rows="2"
-                  ></textarea>
+                  <label>Transaction Type</label>
+                  <div className="transaction-type-selector">
+                    <button 
+                      type="button"
+                      className={`transaction-type-button ${reminderType === 'buy' ? 'active' : ''}`}
+                      onClick={() => setReminderType('buy')}
+                    >
+                      Buy
+                    </button>
+                    <button 
+                      type="button"
+                      className={`transaction-type-button ${reminderType === 'sell' ? 'active' : ''}`}
+                      onClick={() => setReminderType('sell')}
+                    >
+                      Sell
+                    </button>
+                  </div>
                 </div>
+                
                 <button 
                   className="add-reminder-button"
                   onClick={handleAddReminder}
@@ -1259,7 +1343,13 @@ const handleAddMoneyToWallet = () => {
               </div>
 
               <div className="reminders-list">
-                <h3>Your Reminders</h3>
+                <h3>
+                  Your Reminders
+                  {reminders.length > 0 && (
+                    <span className="reminders-count">{reminders.length}</span>
+                  )}
+                </h3>
+                
                 {reminders.length === 0 ? (
                   <p className="no-reminders">No reminders set</p>
                 ) : (
@@ -1267,17 +1357,23 @@ const handleAddMoneyToWallet = () => {
                     <thead>
                       <tr>
                         <th>Stock</th>
-                        <th>Target Price (₹)</th>
-                        <th>Note</th>
+                        <th>Quantity</th>
+                        <th>Price (₹)</th>
+                        <th>Type</th>
                         <th>Actions</th>
                       </tr>
                     </thead>
                     <tbody>
                       {reminders.map(reminder => (
-                        <tr key={reminder.id}>
+                        <tr key={reminder.id} className={`reminder-row reminder-${reminder.type}`}>
                           <td>{reminder.stock}</td>
+                          <td>{reminder.quantity}</td>
                           <td>₹{reminder.price}</td>
-                          <td>{reminder.note}</td>
+                          <td>
+                            <span className={`reminder-tag ${reminder.type}`}>
+                              {reminder.type.charAt(0).toUpperCase() + reminder.type.slice(1)}
+                            </span>
+                          </td>
                           <td>
                             <button 
                               className="delete-reminder-button"

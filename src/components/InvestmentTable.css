@@ -2,13 +2,13 @@
   max-width: 1000px;
   margin: 2rem auto;
   padding: 2rem;
-  background-color: #ffffff;
+  background-color: var(--dark-surface);
   border-radius: 10px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 0 10px var(--dark-shadow);
 }
 
 h1 {
-  color:white;
+  color: var(--dark-text-primary);
   text-align: center;
   margin-bottom: 2rem;
 }
@@ -23,33 +23,35 @@ h1 {
 .investment-table td {
   padding: 1rem;
   text-align: center;
-  border: 1px solid #ddd;
+  border: 1px solid var(--dark-border);
 }
 
 .investment-table th {
-  background-color: #f8f9fa;
+  background-color: var(--dark-surface-elevated);
   font-weight: 600;
 }
 
 .investment-table input {
   width: 100%;
   padding: 0.5rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--dark-border);
   border-radius: 4px;
   text-align: center;
+  background-color: var(--dark-input-bg);
+  color: var(--dark-text-primary);
 }
 
 .investment-table input:focus {
   outline: none;
-  border-color: #2196f3;
+  border-color: var(--dark-primary);
 }
 
 .add-row-button {
   display: block;
   margin: 1rem auto;
   padding: 0.8rem 1.5rem;
-  background-color: #2196f3;
-  color: white;
+  background-color: var(--dark-primary);
+  color: black;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -58,23 +60,23 @@ h1 {
 }
 
 .add-row-button:hover {
-  background-color: #1976d2;
+  background-color: #cabeff;
 }
 
 .investment-table tr:nth-child(even) {
-  background-color: #f8f9fa;
+  background-color: var(--dark-surface-elevated);
 }
 
 .investment-table tr:hover {
-  background-color: #f5f5f5;
+  background-color: var(--dark-hover);
 }
 
 .company-controls {
   margin-bottom: 2rem;
   padding: 1.5rem;
-  background-color: black;
+  background-color: black; /* keeping as per your note about commented colors */
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--dark-shadow);
 }
 
 .company-input {
@@ -88,16 +90,18 @@ h1 {
 
 .company-name-input {
   padding: 0.8rem;
-  border: 1px solid #ddd;
+  border: 1px solid var(--dark-border);
   border-radius: 4px;
   width: 300px;
   font-size: 1rem;
+  background-color: var(--dark-input-bg);
+  color: var(--dark-text-primary);
 }
 
 .save-button {
   padding: 0.8rem 1.5rem;
-  background-color: #4caf50;
-  color: white;
+  background-color: var(--dark-success);
+  color: black;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -106,7 +110,7 @@ h1 {
 }
 
 .save-button:hover {
-  background-color: #388e3c;
+  background-color: #65d669;
 }
 
 .company-list {
@@ -115,7 +119,7 @@ h1 {
 
 .company-list h3 {
   margin-bottom: 0.5rem;
-  color: #333;
+  color: var(--dark-text-primary);
 }
 
 .company-buttons {
@@ -132,12 +136,16 @@ h1 {
   align-items: center;
   min-width: 150px;
   padding: 0.8rem 1rem;
+  background-color: var(--dark-surface);
+  border-radius: 4px;
+  color: var(--dark-text-primary);
 }
 
 .last-updated {
   font-size: 0.7rem;
   margin-top: 0.3rem;
   opacity: 0.8;
+  color: var(--dark-text-secondary);
 }
 
 .navigation-header {
@@ -146,15 +154,15 @@ h1 {
   align-items: center;
   margin-bottom: 2rem;
   padding: 1rem;
-  background-color: #f8f9fa;
+  background-color: var(--dark-surface);
   border-radius: 8px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 4px var(--dark-shadow);
 }
 
 .new-company-button {
   padding: 0.8rem 1.5rem;
-  background-color: #673ab7;
-  color: white;
+  background-color: var(--dark-primary);
+  color: black;
   border: none;
   border-radius: 4px;
   cursor: pointer;
@@ -163,22 +171,22 @@ h1 {
 }
 
 .new-company-button:hover {
-  background-color: #5e35b1;
+  background-color: #cabeff;
 }
 
 .current-company {
   font-size: 1.1rem;
-  color: #333;
+  color: var(--dark-text-primary);
   font-weight: 500;
 }
 
 .investment-table tfoot {
   font-weight: bold;
-  background-color: #f8f9fa;
+  background-color: var(--dark-surface-elevated);
 }
 
 .investment-table tfoot td {
-  border-top: 2px solid #ddd;
+  border-top: 2px solid var(--dark-border);
 }
 
 .company-button-container {
@@ -192,7 +200,7 @@ h1 {
   top: 20px;
   right: 20px;
   padding: 8px 16px;
-  background-color: #2196f3;
+  background-color: var(--dark-danger);
   color: white;
   border: none;
   border-radius: 4px;
@@ -446,7 +454,7 @@ h1 {
   border-radius: 8px;
   margin-bottom: 20px;
   box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
-  background-color: #f9f9f9;
+  background-color: black;
 }
 
 .calculator-header {
@@ -455,14 +463,14 @@ h1 {
   align-items: center;
   padding: 10px 15px;
   border-bottom: 1px solid #ddd;
-  background-color: #f2f2f2;
+  background-color: black;
   border-radius: 8px 8px 0 0;
 }
 
 .calculator-header h3 {
   margin: 0;
   font-size: 16px;
-  color: #333;
+  color: white;
 }
 
 .calculator-actions {
@@ -472,8 +480,8 @@ h1 {
 
 .calculator-actions button {
   padding: 5px 10px;
-  border: 1px solid #ddd;
-  background-color: white;
+  border: 3px solid #ddd;
+  background-color: black;
   border-radius: 4px;
   cursor: pointer;
   font-size: 14px;
@@ -498,14 +506,14 @@ h1 {
   display: flex;
   justify-content: space-between;
   padding: 8px 10px;
-  background-color: white;
+  /* background-color: white; */
   border-radius: 4px;
   border: 1px solid #eee;
 }
 
 .result-item.total {
   font-weight: bold;
-  background-color: #e9f7ef;
+  /* background-color: #e9f7ef; */
   border-color: #c8e6c9;
 }
 
@@ -638,7 +646,6 @@ h1 {
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 0.95rem;
-  background-color: white;
 }
 
 .total-shares-display {
@@ -673,7 +680,7 @@ h1 {
 
 .profit-loss-details h3 {
   margin-top: 0;
-  color: #333;
+  color: white;
   border-bottom: 1px solid #eee;
   padding-bottom: 10px;
   margin-bottom: 20px;
@@ -695,12 +702,12 @@ h1 {
 
 .summary-label {
   font-weight: 500;
-  color: #555;
+  color: white;
 }
 
 .summary-value {
   font-weight: 600;
-  color: #333;
+  color: white;
 }
 
 .summary-item.result {
@@ -778,7 +785,7 @@ h1 {
 .column-selector-dropdown {
   position: absolute;
   right: 0;
-  background: white;
+  background: black;
   border: 1px solid #ccc;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
   padding: 10px;
@@ -799,11 +806,11 @@ h1 {
 }
 
 .column-option:hover {
-  background-color: #f5f5f5;
+  background-color: #797878;
 }
 
 .column-option.active {
-  background-color: #e6f7ff;
+  background-color: rgb(56, 56, 56);
   font-weight: bold;
 }
 
@@ -900,7 +907,7 @@ h1 {
   display: block;
   width: 100%;
   text-align: left;
-  background-color: #f8f9fa;
+  /* background-color: #f8f9fa; */
   border: 1px solid #ddd;
   border-radius: 4px;
   padding: 8px 12px;
@@ -910,7 +917,7 @@ h1 {
 }
 
 .utility-button:hover {
-  background-color: #e9ecef;
+  background-color: #6a6a6a;
 }
 
 .utility-button.danger {
@@ -974,7 +981,6 @@ h1 {
   /* margin-bottom: 20px; */
   overflow: hidden;
   top:0;
-  width: auto;
 }
 
 .utility-toggle {
@@ -1001,7 +1007,7 @@ h1 {
   height: 0;
   overflow: hidden;
   transition: height 0.3s ease-out;
-  background-color: #f8f9fa;
+  background-color: black;
   border-top: none;
   border-radius: 0 0 8px 8px;
   display: flex;
@@ -1028,7 +1034,7 @@ h1 {
 .utility-section h3 {
   font-size: 16px;
   margin: 0 0 10px 0;
-  color: #333;
+  color: white;
   border-bottom: 1px solid #ddd;
   padding-bottom: 5px;
 }
@@ -1040,7 +1046,7 @@ h1 {
 }
 
 .utility-button {
-  background-color: white;
+  /* background-color: white; */
   border: 1px solid #ccc;
   border-radius: 4px;
   padding: 6px 12px;
@@ -1052,7 +1058,7 @@ h1 {
 }
 
 .utility-button:hover {
-  background-color: #e9ecef;
+  /* background-color: #e9ecef; */
 }
 
 .utility-button.danger {
@@ -1061,7 +1067,7 @@ h1 {
 }
 
 .utility-button.danger:hover {
-  background-color: #f8d7da;
+  background-color: #727272;
 }
 
 .utility-button:disabled {

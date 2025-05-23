@@ -32,6 +32,7 @@ const StockAnalysis = () => {
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [showUtilityMenu, setShowUtilityMenu] = useState(false);
   const [showUtilityPanel, setShowUtilityPanel] = useState(false);
+  const [lastSelectedCompany, setLastSelectedCompany] = useState('');
 
   // Load companies from localStorage when component mounts
   useEffect(() => {
@@ -41,9 +42,29 @@ const StockAnalysis = () => {
         const parsedCompanies = JSON.parse(savedCompanies);
         console.log("Loaded companies from localStorage:", parsedCompanies);
         setCompanies(parsedCompanies);
+        
+        // Load last selected company if available
+        const lastCompany = localStorage.getItem('lastSelectedCompany');
+        if (lastCompany) {
+          const foundCompany = parsedCompanies.find(c => c.name === lastCompany);
+          if (foundCompany) {
+            console.log("Restoring last selected company:", lastCompany);
+            loadCompanyData(foundCompany);
+          } else {
+            // If last company not found, clear the form without showing input
+            clearForm(false);
+          }
+        } else {
+          // No last company, start with empty form without showing input
+          clearForm(false);
+        }
       } catch (error) {
         console.error("Error parsing companies from localStorage:", error);
+        clearForm(false);
       }
+    } else {
+      // No companies data, ensure form is clear without showing input
+      clearForm(false);
     }
   }, []);
 
@@ -209,13 +230,21 @@ const StockAnalysis = () => {
   };
 
   const addNewRow = () => {
-    const lastRow = transactions[transactions.length - 1];
-    const newId = lastRow.id + 1;
-    
-    setTransactions([
-      ...transactions,
-      { id: newId, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
-    ]);
+    if (transactions.length === 0) {
+      // If no transactions exist, create a new one with ID 1
+      setTransactions([
+        { id: 1, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
+      ]);
+    } else {
+      // Get the last row's ID and increment it
+      const lastRow = transactions[transactions.length - 1];
+      const newId = lastRow.id + 1;
+      
+      setTransactions([
+        ...transactions,
+        { id: newId, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
+      ]);
+    }
   };
   
   const deleteTransaction = (index, event) => {
@@ -553,6 +582,10 @@ const StockAnalysis = () => {
       // First update company name
       setCompanyName(selectedCompany.name);
       
+      // Save the selected company to localStorage
+      localStorage.setItem('lastSelectedCompany', selectedCompany.name);
+      setLastSelectedCompany(selectedCompany.name);
+      
       // Ensure we're working with the correct transaction structure
       const loadedTransactions = selectedCompany.transactions.map(tx => ({
         id: tx.id || 1,
@@ -586,7 +619,7 @@ const StockAnalysis = () => {
     }
   };
 
-  const clearForm = () => {
+  const clearForm = (showNameInput = true) => {
     console.log("Clearing form explicitly called");
     
     // Close the calculator if it's open to prevent errors
@@ -596,10 +629,14 @@ const StockAnalysis = () => {
     }
     
     setCompanyName('');
-    setIsNewCompanyMode(true);
-    setTransactions([
-      { id: 1, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
-    ]);
+    // Only set to true if we explicitly want to show the input
+    setIsNewCompanyMode(showNameInput);
+    // Set transactions to an empty array instead of creating a default row
+    setTransactions([]);
+    
+    // Clear the last selected company
+    localStorage.removeItem('lastSelectedCompany');
+    setLastSelectedCompany('');
   };
 
   const deleteCompany = (companyNameToDelete, event) => {
@@ -617,6 +654,12 @@ const StockAnalysis = () => {
       // If the deleted company was currently selected, clear the form
       if (companyNameToDelete === companyName) {
         clearForm();
+      }
+      
+      // If the deleted company was the last selected one, remove it from localStorage
+      if (companyNameToDelete === lastSelectedCompany) {
+        localStorage.removeItem('lastSelectedCompany');
+        setLastSelectedCompany('');
       }
       
       alert(`${companyNameToDelete} has been deleted`);
@@ -669,8 +712,20 @@ const StockAnalysis = () => {
         return;
       }
       
+      // Get reminders data
+      let remindersData = localStorage.getItem('stockReminders');
+      if (!remindersData) {
+        remindersData = '[]';
+      }
+      
+      // Create a combined data object with both companies and reminders
+      const exportData = {
+        companies: JSON.parse(savedCompanies),
+        reminders: JSON.parse(remindersData)
+      };
+      
       // Create a Blob with the data
-      const blob = new Blob([savedCompanies], { type: 'application/json' });
+      const blob = new Blob([JSON.stringify(exportData)], { type: 'application/json' });
       
       // Create a temporary URL for the blob
       const url = URL.createObjectURL(blob);
@@ -681,7 +736,7 @@ const StockAnalysis = () => {
       
       // Set the filename with current date
       const date = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
-      link.download = `investment-companies-${date}.json`;
+      link.download = `investment-data-${date}.json`;
       
       // Append link to body, click it, and remove it
       document.body.appendChild(link);
@@ -691,9 +746,9 @@ const StockAnalysis = () => {
       // Release the URL object
       URL.revokeObjectURL(url);
       
-      console.log('Companies data exported successfully');
+      console.log('Companies and reminders data exported successfully');
     } catch (error) {
-      console.error('Error exporting companies data:', error);
+      console.error('Error exporting data:', error);
       alert('Error exporting data. Please try again.');
     }
   };
@@ -711,25 +766,50 @@ const StockAnalysis = () => {
       reader.onload = (e) => {
         try {
           const contents = e.target.result;
-          const importedCompanies = JSON.parse(contents);
+          const parsedData = JSON.parse(contents);
           
-          // Validate that it's an array
-          if (!Array.isArray(importedCompanies)) {
+          let importedCompanies;
+          let importedReminders;
+          
+          // Check if this is the new format with companies and reminders
+          if (parsedData.companies && Array.isArray(parsedData.companies)) {
+            importedCompanies = parsedData.companies;
+            importedReminders = parsedData.reminders || [];
+            console.log("Imported data in new format with reminders:", importedReminders);
+          } 
+          // Legacy format (just an array of companies)
+          else if (Array.isArray(parsedData)) {
+            importedCompanies = parsedData;
+            importedReminders = [];
+            console.log("Imported data in legacy format, no reminders");
+          }
+          else {
             throw new Error('Invalid data format');
           }
           
           // Ask for confirmation
-          if (window.confirm(`This will import ${importedCompanies.length} companies. Continue?`)) {
-            // Save to localStorage
-            localStorage.setItem('companies', contents);
+          if (window.confirm(`This will import ${importedCompanies.length} companies and ${importedReminders.length} reminders. Continue?`)) {
+            // Save companies to localStorage
+            localStorage.setItem('companies', JSON.stringify(importedCompanies));
             
-            // Update state
+            // Save reminders to localStorage
+            localStorage.setItem('stockReminders', JSON.stringify(importedReminders));
+            console.log("Saved reminders to localStorage:", importedReminders);
+            
+            // Update companies state
             setCompanies(importedCompanies);
+            
+            // Dispatch a custom event with the reminder data to notify WalletTracker
+            const reminderEvent = new CustomEvent('reminders-imported', { 
+              detail: { reminders: importedReminders } 
+            });
+            window.dispatchEvent(reminderEvent);
+            console.log("Dispatched reminders-imported event with data");
             
             // Clear current form
             clearForm();
             
-            alert('Companies data imported successfully');
+            alert('Companies and reminders data imported successfully');
           }
         } catch (error) {
           console.error('Error parsing imported file:', error);
@@ -746,7 +826,7 @@ const StockAnalysis = () => {
       // Reset the input element so the same file can be selected again
       event.target.value = '';
     } catch (error) {
-      console.error('Error importing companies data:', error);
+      console.error('Error importing data:', error);
       alert('Error importing data. Please try again.');
     }
   };
@@ -841,9 +921,26 @@ const StockAnalysis = () => {
   // Add the clearLocalStorage function
   const clearLocalStorage = () => {
     if (window.confirm('Are you sure you want to clear all data? This action cannot be undone.')) {
+      // Clear companies data
       localStorage.removeItem('companies');
+      
+      // Also clear reminders data
+      localStorage.removeItem('stockReminders');
+      
+      // Clear last selected company
+      localStorage.removeItem('lastSelectedCompany');
+      
+      // Update state
       setCompanies([]);
-      clearForm();
+      setLastSelectedCompany('');
+      
+      // Clear the form
+      clearForm(false);
+      
+      // Dispatch an event to notify WalletTracker that reminders have been cleared
+      const reminderEvent = new CustomEvent('reminders-cleared');
+      window.dispatchEvent(reminderEvent);
+      
       alert('All data has been cleared from localStorage.');
     }
   };
@@ -1013,9 +1110,12 @@ const saveAllData = () => {
       // Check if this is a sell transaction (negative quantity)
       const isSellTransaction = quantity < 0;
       
-      // Get the next ID
-      const lastRow = transactions[transactions.length - 1];
-      const newId = lastRow.id + 1;
+      // Get the next ID - handle the case when transactions array is empty
+      let newId = 1;
+      if (transactions.length > 0) {
+        const lastRow = transactions[transactions.length - 1];
+        newId = lastRow.id + 1;
+      }
       
       // Create a new transaction object
       const newTransaction = {
@@ -1158,6 +1258,14 @@ const saveAllData = () => {
         setTransactions(calculatedTransactions);
         setCompanies(updatedCompanies);
         
+        // If this was a new company, close the new company mode
+        if (isNewCompanyMode) {
+          setIsNewCompanyMode(false);
+          // Save the company name to localStorage for future reference
+          localStorage.setItem('lastSelectedCompany', companyName);
+          setLastSelectedCompany(companyName);
+        }
+        
         // Record the new transaction
         recordTransaction(companyName, newId);
         
@@ -1176,6 +1284,14 @@ const saveAllData = () => {
     } else {
       // Just save the existing data
       saveAllData();
+      
+      // If this was a new company, close the new company mode
+      if (isNewCompanyMode) {
+        setIsNewCompanyMode(false);
+        // Save the company name to localStorage for future reference
+        localStorage.setItem('lastSelectedCompany', companyName);
+        setLastSelectedCompany(companyName);
+      }
     }
   };
 
@@ -1313,7 +1429,7 @@ const saveAllData = () => {
       {showCalculator && (
         <div className="calculator-container">
           <div className="calculator-header">
-            <h3>Transaction Calculator</h3>
+            <h3>Selected Transaction Summary</h3>
             <div className="calculator-actions">
               <button onClick={clearSelectedTransactions}>Clear Selection</button>
               <button onClick={() => setShowCalculator(false)}>Close</button>
@@ -1488,9 +1604,7 @@ const saveAllData = () => {
       )}
 
       <div className={`utility-panel-container ${showUtilityPanel ? 'open' : ''}`}>
-        {/* <div className="utility-toggle" > */}
           <span className="arrow-icon" onClick={toggleUtilityPanel}>{showUtilityPanel ? '▲' : '▼'}</span>
-        {/* </div> */}
         
         <div className="utility-panel">
           <div className="utility-section">
@@ -1498,7 +1612,7 @@ const saveAllData = () => {
             <div className="utility-buttons">
               <button 
                 className="utility-button"
-                onClick={exportCompaniesToFile}
+                onClick={()=>{exportCompaniesToFile();toggleUtilityPanel();}}
                 title="Download your companies data as a file"
               >
                 Export Data
@@ -1506,7 +1620,7 @@ const saveAllData = () => {
               
               <button 
                 className="utility-button"
-                onClick={() => document.getElementById('import-companies-input').click()}
+                onClick={() => {document.getElementById('import-companies-input').click();toggleUtilityPanel();}}
                 title="Replace all companies with data from a file"
               >
                 Import Data
@@ -1514,7 +1628,7 @@ const saveAllData = () => {
               
               <button 
                 className="utility-button danger"
-                onClick={clearLocalStorage}
+                onClick={()=>{clearLocalStorage();}}
                 title="Clear all data from localStorage"
               >
                 Clear All Data
@@ -1527,7 +1641,7 @@ const saveAllData = () => {
             <div className="utility-buttons">
               <button 
                 className="utility-button"
-                onClick={clearForm}
+                onClick={()=>{clearForm(true);toggleUtilityPanel();}}
                 title="Create a new company"
               >
                 New Company
@@ -1550,53 +1664,16 @@ const saveAllData = () => {
             <div className="utility-buttons">
               <button
                 className="utility-button"
-                onClick={() => setShowCalculator(!showCalculator)}
+                onClick={() => {setShowCalculator(!showCalculator);toggleUtilityPanel();}}
                 title="Toggle transaction calculator"
               >
-                {showCalculator ? 'Hide Calculator' : 'Show Calculator'}
+                {!showCalculator&& 'Selected transaction Summary'}
               </button>
               
-              {showCalculator && (
-                <button
-                  className="utility-button"
-                  onClick={clearSelectedTransactions}
-                  title="Clear selection"
-                  disabled={selectedTransactions.length === 0}
-                >
-                  Clear Selection
-                </button>
-              )}
+              
             </div>
             
-            {showCalculator && selectedTransactions.length > 0 && (
-              <div className="calculator-summary">
-                <div className="summary-row">
-                  <span>Selected:</span>
-                  <span>{selectedTransactions.length} transactions</span>
-                </div>
-                
-                <div className="summary-row">
-                  <span>Total Shares:</span>
-                  <span>{calculateSelectedSum().totalShares.toFixed(2)}</span>
-                </div>
-                
-                <div className="summary-row">
-                  <span>Total Investment:</span>
-                  <span>₹{calculateSelectedSum().totalInvestment.toFixed(2)}</span>
-                </div>
-                
-                <div className="summary-row">
-                  <span>Total Charges:</span>
-                  <span>₹{calculateSelectedSum().totalExtraCharges.toFixed(2)}</span>
-                </div>
-                
-                {hasSellTransactionsSelected() && (
-                  <div className="warning-text">
-                    Note: Results include sell transactions which may affect accuracy
-                  </div>
-                )}
-              </div>
-            )}
+           
           </div>
         </div>
       </div>
@@ -1616,15 +1693,11 @@ const saveAllData = () => {
         <div className="company-input">
           <div className="company-select-container">
             <select
-              value={companyName ? companyName : "__new__"}
+              value={companyName || ""}
               onChange={e => {
                 const selectedName = e.target.value;
-                if (selectedName === "__new__") {
-                  setCompanyName('');
-                  setIsNewCompanyMode(true);
-                  setTransactions([
-                    { id: 1, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
-                  ]);
+                if (selectedName === "") {
+                  clearForm(false); // Clear form without showing input
                 } else {
                   setCompanyName(selectedName);
                   setIsNewCompanyMode(false);
@@ -1636,7 +1709,7 @@ const saveAllData = () => {
               }}
               className="company-select"
             >
-              <option value="__new__">+ New Company</option>
+              <option value="">Select Company</option>
               {companies
                 .filter(company => company.name !== "_TransactionHistory")
                 .map((company, index) => (
@@ -1705,7 +1778,7 @@ const saveAllData = () => {
             {visibleColumns.includes('totalShares') && <th>Total Shares</th>}
             {visibleColumns.includes('extraCharges') && <th>Extra Charges (₹)</th>}
             {visibleColumns.includes('totalExtraCharges') && <th>Total Extra Charges (₹)</th>}
-            {visibleColumns.includes('totalInvestment') && <th>Total Investment (₹)</th>}
+            {visibleColumns.includes('totalInvestment') && <th>Total Investment(no extra charges) (₹)</th>}
             {visibleColumns.includes('averagePrice') && <th>Average Price (₹)</th>}
             <th>
               <button 
@@ -1797,21 +1870,26 @@ const saveAllData = () => {
             </tr>
           ))}
         </tbody>
-        <tfoot>
-          <tr>
-            {showCalculator && <td></td>}
-            {visibleColumns.includes('id') && <td>Total</td>}
-            {visibleColumns.includes('price') && <td></td>}
-            {visibleColumns.includes('quantity') && <td></td>}
-            {visibleColumns.includes('totalShares') && <td>{transactions[transactions.length - 1]?.totalShares?.toFixed(2) || '0.00'}</td>}
-            {visibleColumns.includes('extraCharges') && <td>{transactions.reduce((sum, t) => sum + (t.extraCharges || 0), 0).toFixed(2)}</td>}
-            {visibleColumns.includes('totalExtraCharges') && <td>{transactions[transactions.length - 1]?.totalExtraCharges?.toFixed(2) || '0.00'}</td>}
-            {visibleColumns.includes('totalInvestment') && <td>{transactions[transactions.length - 1]?.totalInvestment?.toFixed(2) || '0.00'}</td>}
-            {visibleColumns.includes('averagePrice') && <td>-</td>}
-            <td></td>
-          </tr>
-        </tfoot>
+        {transactions.length > 0 && (
+          <tfoot>
+            <tr>
+              {showCalculator && <td></td>}
+              {visibleColumns.includes('id') && <td>Total</td>}
+              {visibleColumns.includes('price') && <td></td>}
+              {visibleColumns.includes('quantity') && <td></td>}
+              {visibleColumns.includes('totalShares') && <td>{transactions[transactions.length - 1]?.totalShares?.toFixed(2) || '0.00'}</td>}
+              {visibleColumns.includes('extraCharges') && <td>{transactions.reduce((sum, t) => sum + (t.extraCharges || 0), 0).toFixed(2)}</td>}
+              {visibleColumns.includes('totalExtraCharges') && <td>{transactions[transactions.length - 1]?.totalExtraCharges?.toFixed(2) || '0.00'}</td>}
+              {visibleColumns.includes('totalInvestment') && <td>{transactions[transactions.length - 1]?.totalInvestment?.toFixed(2) || '0.00'}</td>}
+              {visibleColumns.includes('averagePrice') && <td>-</td>}
+              <td></td>
+            </tr>
+          </tfoot>
+        )}
       </table>
+      
+      {/* Show the add row button only when a company is selected */}
+     
     </div>
   );
 };
