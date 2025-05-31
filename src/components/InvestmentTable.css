@@ -96,6 +96,7 @@ h1 {
   font-size: 1rem;
   background-color: var(--dark-input-bg);
   color: var(--dark-text-primary);
+  width: 100%;
 }
 
 .save-button {
@@ -325,7 +326,11 @@ h1 {
   flex-direction: column;
   gap: 0.8rem;
 }
-
+.quick-transaction-inputs{
+  display: flex;
+  gap:10px;
+  justify-content: center;
+}
 .calc-item {
   display: flex;
   justify-content: space-between;
@@ -639,6 +644,7 @@ h1 {
   flex-direction: column;
   gap: 8px;
   min-width: 200px;
+  width: 100%;
 }
 
 .company-select {
@@ -841,6 +847,33 @@ h1 {
   .investment-table td {
     padding: 5px 3px;
   }
+  .quick-transaction{
+    display: block;
+  }
+  .quick-transaction-inputs{
+    margin-bottom: 10px;
+  }
+  .quick-input{
+    height: 35px;
+  }
+  td,th{
+    width:0px;
+    font-size: 10px;
+    min-width: none;
+  }
+  .investment-table input{
+    width:90%;
+    font-size: 10px;
+    height:15px;
+    padding: 0;
+  }
+  .App .wallet-tracker-container{
+    max-width: 100vw;
+    padding:5px;
+  }
+  #root .App{
+    padding: 10px 10px 10px 10px;
+  }
 }
 
 /* Utility dropdown styles */
@@ -976,11 +1009,15 @@ h1 {
 /* Utility panel styles */
 .utility-panel-container {
   position: fixed;
-  width: 100%;
+  width: 85%;
   border: none;
   /* margin-bottom: 20px; */
   overflow: hidden;
   top:0;
+  left: 50%;
+  top: 0;
+  transform: translate(-50%, 0%);
+  z-index: 100;
 }
 
 .utility-toggle {

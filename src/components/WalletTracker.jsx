@@ -41,6 +41,9 @@ const WalletTracker = () => {
   const [expandedBuyRows, setExpandedBuyRows] = useState([]);
   const [individualBuyTransactions, setIndividualBuyTransactions] = useState({});
 
+  // Add this new state variable for the utility panel
+  const [showUtilityPanel, setShowUtilityPanel] = useState(false);
+
   // Load companies data from localStorage when component mounts
   useEffect(() => {
     const loadCompaniesFromStorage = () => {
@@ -1190,62 +1193,76 @@ const handleAddMoneyToWallet = () => {
   return (
     <div className="wallet-tracker-container">
       <div className="wallet-header">
-        {/* <h1>Wallet and Investment Tracker</h1> */}
-        <div className="header-actions">
-          <button 
-            className="reminder-button"
-            onClick={() => setShowReminderModal(true)}
-            title="Set reminders for stocks to buy"
-          >
-            🔔
-          </button>
-          <button 
-            className="info-button"
-            onClick={() => setShowInfoModal(true)}
-            title="View information about wallet calculations"
-          >
-            ℹ️
-          </button>
-         
-          {saveStatus && (
-            <span className={`save-status ${saveStatus.includes('Error') ? 'error' : 'success'}`}>
-              {saveStatus}
-            </span>
-          )}
-        </div>
+        
       </div>
       
-      <div className="wallet-actions-section">
-      <div className="wallet-deposit-section">
-        <input
-          type="number"
-          value={depositAmount}
-          onChange={(e) => setDepositAmount(e.target.value)}
-          placeholder="Amount to add to wallet"
-          className="deposit-input"
-        />
-        <button 
-          className="deposit-button"
-          onClick={handleAddMoneyToWallet}
-        >
-          Add Money to Wallet
-        </button>
-      </div>
-      
-        <div className="wallet-withdraw-section">
-          <input
-            type="number"
-            value={withdrawAmount}
-            onChange={(e) => setWithdrawAmount(e.target.value)}
-            placeholder="Amount to withdraw from wallet"
-            className="withdraw-input"
-          />
-          <button 
-            className="withdraw-button"
-            onClick={handleWithdrawMoneyFromWallet}
-          >
-            Withdraw Money from Wallet
-          </button>
+      <div className={`utility-panel-container ${showUtilityPanel ? 'open' : ''}`}>
+        <span className="arrow-icon" onClick={() => setShowUtilityPanel(!showUtilityPanel)}>{showUtilityPanel ? '▲' : '▼'}</span>
+        
+        <div className="utility-panel">
+          <div className="utility-section">
+            <h3>Wallet Management</h3>
+            <div className="wallet-deposit-section">
+              <input
+                type="number"
+                value={depositAmount}
+                onChange={(e) => setDepositAmount(e.target.value)}
+                placeholder="Amount to add to wallet"
+                className="deposit-input"
+              />
+              <button 
+                className="deposit-button"
+                onClick={() => {handleAddMoneyToWallet(); setShowUtilityPanel(false);}}
+              >
+                Add Money to Wallet
+              </button>
+            </div>
+            
+            <div className="wallet-withdraw-section">
+              <input
+                type="number"
+                value={withdrawAmount}
+                onChange={(e) => setWithdrawAmount(e.target.value)}
+                placeholder="Amount to withdraw from wallet"
+                className="withdraw-input"
+              />
+              <button 
+                className="withdraw-button"
+                onClick={() => {handleWithdrawMoneyFromWallet(); setShowUtilityPanel(false);}}
+              >
+                Withdraw Money from Wallet
+              </button>
+            </div>
+          </div>
+          
+          <div className="utility-section">
+            <h3>Actions</h3>
+            <div className="utility-buttons">
+              <button 
+                className="utility-button"
+                onClick={() => {refreshData(); setShowUtilityPanel(false);}}
+                title="Refresh data from localStorage"
+              >
+                Refresh Data
+              </button>
+              
+              <button 
+                className="utility-button"
+                onClick={() => {setShowReminderModal(true); setShowUtilityPanel(false);}}
+                title="Set reminders for stocks to buy"
+              >
+                Stock Reminders
+              </button>
+              
+              <button 
+                className="utility-button"
+                onClick={() => {setShowInfoModal(true); setShowUtilityPanel(false);}}
+                title="View information about wallet calculations"
+              >
+                Wallet Information
+              </button>
+            </div>
+          </div>
         </div>
       </div>
       
@@ -1398,36 +1415,16 @@ const handleAddMoneyToWallet = () => {
         <div className="modal-overlay">
           <div className="modal-content info-modal">
             <div className="modal-header">
-              <h2>Wallet Tracker Information</h2>
+              <h2>Wallet Calculation Information</h2>
               <button 
                 className="modal-close"
                 onClick={() => setShowInfoModal(false)}
               >
                 ×
-      </button>
+              </button>
             </div>
             <div className="modal-body">
-              <p><strong>Important Information about Calculations:</strong></p>
-              <ul>
-                <li>The total investment shown for each company includes both the stock purchase price and all extra charges.</li>
-                <li>When a sell transaction occurs, the full sell value is added to the wallet amount (charges are not deducted from wallet).</li>
-                <li>Extra charges on sell transactions are considered part of your investment in the company.</li>
-                <li>Extra Money Caused column shows your cumulative profit/loss from all sell transactions.</li>
-                <li>Profit/loss is calculated as: Sell Value - (Original Cost Basis + Buy Transaction Charges + Sell Transaction Charges).</li>
-                <li>Original cost basis is determined using the FIFO (First In, First Out) method.</li>
-                <li>Buy charges are calculated precisely based on the specific buy transactions used for the sold shares (FIFO method).</li>
-              </ul>
-              
-              <p><strong>How Transactions Are Displayed:</strong></p>
-              <ul>
-                <li>Consecutive buy transactions for any company are combined into a single row to reduce clutter.</li>
-                <li>A new row is created only after a sell transaction occurs or when money is added to wallet.</li>
-                <li>Sell transactions are always shown with a detailed note explaining the profit or loss.</li>
-                <li>Sale notes show both the selling value and the original cost basis of the shares.</li>
-                <li>Selling extra charges are also displayed in the sale notes for complete transparency.</li>
-                <li>Wallet deposits are always shown individually with their own descriptive notes.</li>
-                <li>The row number shown in the "Transaction #" column refers to the result of combined transactions, not individual stock purchases.</li>
-              </ul>
+              {/* Add your information content here */}
             </div>
           </div>
         </div>
@@ -1436,4 +1433,4 @@ const handleAddMoneyToWallet = () => {
   );
 };
 
-export default WalletTracker; 
+export default WalletTracker;

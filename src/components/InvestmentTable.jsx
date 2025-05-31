@@ -1357,9 +1357,7 @@ const saveAllData = () => {
       setWindowWidth(window.innerWidth);
       
       // Adjust visible columns based on screen width with your priority order
-      if (window.innerWidth < 500) {
-        setVisibleColumns(['id', 'price', 'quantity']);
-      } else if (window.innerWidth < 700) {
+       if (window.innerWidth < 700) {
         setVisibleColumns(['id', 'price', 'quantity', 'totalInvestment', 'extraCharges']);
       } else if (window.innerWidth < 900) {
         setVisibleColumns(['id', 'price', 'quantity', 'totalInvestment', 'extraCharges', 'averagePrice']);
@@ -1741,6 +1739,7 @@ const saveAllData = () => {
           
           {/* Quick Transaction Form with Save Button */}
           <div className="quick-transaction">
+            <div className="quick-transaction-inputs">
             <input
               type="number"
               value={quickPrice}
@@ -1757,6 +1756,7 @@ const saveAllData = () => {
               className="quick-input"
               inputMode="decimal"
             />
+            </div>
             <button 
               className="save-button"
               onClick={handleSaveTransactions}
@@ -1774,7 +1774,7 @@ const saveAllData = () => {
             {showCalculator && <th className="select-column">Select</th>}
             {visibleColumns.includes('id') && <th>id</th>}
             {visibleColumns.includes('price') && <th>Price (₹)</th>}
-            {visibleColumns.includes('quantity') && <th>Quantity</th>}
+            {visibleColumns.includes('quantity') && <th>Qtn</th>}
             {visibleColumns.includes('totalShares') && <th>Total Shares</th>}
             {visibleColumns.includes('extraCharges') && <th>Extra Charges (₹)</th>}
             {visibleColumns.includes('totalExtraCharges') && <th>Total Extra Charges (₹)</th>}
