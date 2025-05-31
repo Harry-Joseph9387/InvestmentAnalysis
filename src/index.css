@@ -136,13 +136,15 @@ code {
 
 /* Force table cells to have dark backgrounds */
 th, td {
-  background-color: var(--dark-surface) !important;
-  color: var(--dark-text-primary) !important;
+  /* background-color: var(--dark-surface) !important; */
+  background-color: #090707 !important;
+  /* color: var(--dark-text-primary) !important; */
 }
 
 /* Ensure alternating rows are slightly different */
 tr:nth-child(even) td {
-  background-color: var(--dark-surface-elevated) !important;
+  /* background-color: var(--dark-surface-elevated) !important; */
+  background-color: #000000 !important;
 }
 
 /* Warning boxes with appropriate colors */

@@ -1,6 +1,22 @@
 import React, { useState, useEffect } from 'react';
 import './InvestmentTable.css';
 
+// Add this helper function before calculateExtraCharges
+const roundSTT = (sttValue) => {
+  // Get the whole rupee part
+  const rupeePart = Math.floor(sttValue);
+  
+  // Get the paise part (the decimal portion)
+  const paisePart = sttValue - rupeePart;
+  
+  // If paise is 50 or more, round up to the nearest rupee
+  // If paise is less than 50, round down (keep just the rupee part)
+  if (paisePart >= 0.5) {
+    return Math.ceil(sttValue);
+  } else {
+    return rupeePart;
+  }
+};
 
 const StockAnalysis = () => {
   const [companyName, setCompanyName] = useState('');
@@ -90,7 +106,9 @@ const StockAnalysis = () => {
     brokerage = Math.min(brokerage, brokerageLimit);
     
     // STT is 0.1% for both buy and sell
-    const stt = absoluteValue * 0.001;
+    // Apply custom rounding rule: If paise is 50 or more, round up; if less than 50, round down
+    const sttRaw = absoluteValue * 0.001;
+    const stt = roundSTT(sttRaw);
 
     if (isSelling) {
       // Selling charges
@@ -422,7 +440,7 @@ const StockAnalysis = () => {
             remaining: quantity
           });
           
-          // Calculate extra charges
+          // Calculate extra charges with the rounded STT
           const extraCharges = calculateExtraCharges(price * quantity, quantity);
           runningTotalExtraCharges += extraCharges; // Add to running total
           
@@ -463,7 +481,7 @@ const StockAnalysis = () => {
           runningTotalShares -= sellQuantity;
           runningTotalInvestment -= costBasisOfSoldShares;
           
-          // Calculate selling value and extra charges
+          // Calculate selling value and extra charges with rounded STT
           const sellingValue = price * sellQuantity;
           const extraCharges = calculateExtraCharges(sellingValue, quantity);
           runningTotalExtraCharges += extraCharges; // Add to running total
@@ -1055,6 +1073,8 @@ const saveAllData = () => {
       if (quantity > 0) {
         totalInvestment += price * quantity;
         totalShares += quantity;
+        
+        // Use the pre-calculated extraCharges which includes the rounded STT
         totalExtraCharges += parseFloat(tx.extraCharges) || 0;
       } 
       // For sell transactions (negative quantity)
@@ -1063,6 +1083,8 @@ const saveAllData = () => {
         // This is complex to implement here, so we'll show a warning instead
         // and use the transaction's direct values
         totalShares += quantity; // Will reduce the total (quantity is negative)
+        
+        // Use the pre-calculated extraCharges which includes the rounded STT
         totalExtraCharges += parseFloat(tx.extraCharges) || 0;
         
         // For sell transactions, we'll use the absolute value of quantity * price
@@ -1405,6 +1427,144 @@ const saveAllData = () => {
     setShowUtilityPanel(!showUtilityPanel);
   };
 
+  // Add a function to calculate detailed breakdown of charges for selected transactions
+  const calculateDetailedCharges = () => {
+    if (selectedTransactions.length === 0) {
+      return {
+        brokerage: 0,
+        stt: 0,
+        exchangeCharge: 0,
+        sebiTurnover: 0,
+        stampDuty: 0,
+        ipf: 0,
+        depository: 0,
+        growwFee: 0,
+        gst: 0
+      };
+    }
+    
+    // Get selected transactions
+    const selectedTxs = transactions.filter(tx => selectedTransactions.includes(tx.id));
+    
+    // Initialize charge totals
+    let totalBrokerage = 0;
+    let totalStt = 0;
+    let totalExchangeCharge = 0;
+    let totalSebiTurnover = 0;
+    let totalStampDuty = 0;
+    let totalIpf = 0;
+    let totalDepository = 0;
+    let totalGrowwFee = 0;
+    let totalGst = 0;
+    
+    // For each selected transaction, calculate its individual charges
+    selectedTxs.forEach(tx => {
+      const price = parseFloat(tx.price) || 0;
+      const quantity = parseFloat(tx.quantity) || 0;
+      const isSelling = quantity < 0;
+      const absoluteValue = Math.abs(price * quantity);
+      
+      // Skip invalid transactions
+      if (price === 0 || quantity === 0) return;
+      
+      // Calculate brokerage
+      let brokerage = absoluteValue * 0.001; // 0.1%
+      brokerage = Math.min(brokerage, 20); // Max cap
+      brokerage = Math.max(brokerage, 2); // Min floor
+      const brokerageLimit = absoluteValue * 0.025; // 2.5% limit
+      brokerage = Math.min(brokerage, brokerageLimit);
+      
+      // STT is 0.1% for both buy and sell
+      // Apply the custom rounding rule for STT
+      const sttRaw = absoluteValue * 0.001;
+      const stt = roundSTT(sttRaw);
+      
+      // Exchange charge is 0.00297% for both
+      const exchangeCharge = absoluteValue * 0.0000297;
+      
+      // SEBI turnover is 0.0001% for both
+      const sebiTurnover = absoluteValue * 0.000001;
+      
+      // IPF is 0.0001% for both
+      const ipf = absoluteValue * 0.000001;
+      
+      // GST calculation
+      const gst = 0.18 * (brokerage + exchangeCharge + sebiTurnover);
+      
+      // Add to running totals
+      totalBrokerage += brokerage;
+      totalStt += stt;
+      totalExchangeCharge += exchangeCharge;
+      totalSebiTurnover += sebiTurnover;
+      totalIpf += ipf;
+      totalGst += gst;
+      
+      if (isSelling) {
+        // Selling specific charges
+        const depository = 3.5; // Fixed
+        const growwFee = absoluteValue >= 100 ? 15 : 0;
+        
+        totalDepository += depository;
+        totalGrowwFee += growwFee;
+      } else {
+        // Buying specific charge - Stamp Duty
+        const stampDuty = absoluteValue * 0.00015; // 0.015%
+        totalStampDuty += stampDuty;
+      }
+    });
+    
+    return {
+      brokerage: totalBrokerage,
+      stt: totalStt,
+      exchangeCharge: totalExchangeCharge,
+      sebiTurnover: totalSebiTurnover,
+      stampDuty: totalStampDuty,
+      ipf: totalIpf,
+      depository: totalDepository,
+      growwFee: totalGrowwFee,
+      gst: totalGst
+    };
+  };
+
+  // Helper function to recalculate the sum with properly rounded STT values
+  const calculateTotalWithRoundedSTT = () => {
+    // Skip if no transactions selected
+    if (selectedTransactions.length === 0) {
+      return { totalInvestment: 0, totalShares: 0, totalExtraCharges: 0 };
+    }
+    
+    // Get selected transactions
+    const selectedTxs = transactions.filter(tx => selectedTransactions.includes(tx.id));
+    
+    // Calculate direct sum of selected transactions
+    let totalInvestment = 0;
+    let totalShares = 0;
+    let totalExtraCharges = 0;
+    
+    // For each selected transaction
+    selectedTxs.forEach(tx => {
+      const price = parseFloat(tx.price) || 0;
+      const quantity = parseFloat(tx.quantity) || 0;
+      
+      // Skip invalid transactions
+      if (price === 0 || quantity === 0) return;
+      
+      // Use proper STT rounding when calculating total extra charges
+      const transactionValue = price * Math.abs(quantity);
+      const extraChargesWithRoundedSTT = calculateExtraCharges(transactionValue, quantity);
+      
+      totalInvestment += price * quantity;
+      totalShares += quantity;
+      totalExtraCharges += extraChargesWithRoundedSTT;
+    });
+    
+    return {
+      totalInvestment,
+      totalShares,
+      totalExtraCharges
+    };
+  };
+
   return (
     <div className="stock-analysis-container">
       {/* <h1>Stock Investment Analysis</h1> */}
@@ -1445,9 +1605,62 @@ const saveAllData = () => {
                   <span>Total Shares:</span>
                   <span>{calculateSelectedSum().totalShares.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
+                
+                {/* Add detailed charges breakdown section */}
+                <div className="charges-breakdown">
+                  <h4>Charges Breakdown:</h4>
+                  {/* Common charges */}
+                  <div className="charge-item">
+                    <span className="charge-name">Brokerage:</span>
+                    <span className="charge-value">₹{calculateDetailedCharges().brokerage.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="charge-item">
+                    <span className="charge-name">STT:</span>
+                    <span className="charge-value">₹{calculateDetailedCharges().stt.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="charge-item">
+                    <span className="charge-name">Exchange Charge:</span>
+                    <span className="charge-value">₹{calculateDetailedCharges().exchangeCharge.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="charge-item">
+                    <span className="charge-name">SEBI Turnover:</span>
+                    <span className="charge-value">₹{calculateDetailedCharges().sebiTurnover.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="charge-item">
+                    <span className="charge-name">IPF:</span>
+                    <span className="charge-value">₹{calculateDetailedCharges().ipf.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  <div className="charge-item">
+                    <span className="charge-name">GST:</span>
+                    <span className="charge-value">₹{calculateDetailedCharges().gst.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  </div>
+                  
+                  {/* Buy specific charges */}
+                  {calculateDetailedCharges().stampDuty > 0 && (
+                    <div className="charge-item">
+                      <span className="charge-name">Stamp Duty:</span>
+                      <span className="charge-value">₹{calculateDetailedCharges().stampDuty.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  
+                  {/* Sell specific charges */}
+                  {calculateDetailedCharges().depository > 0 && (
+                    <div className="charge-item">
+                      <span className="charge-name">Depository:</span>
+                      <span className="charge-value">₹{calculateDetailedCharges().depository.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                  {calculateDetailedCharges().growwFee > 0 && (
+                    <div className="charge-item">
+                      <span className="charge-name">Groww Fee:</span>
+                      <span className="charge-value">₹{calculateDetailedCharges().growwFee.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                    </div>
+                  )}
+                </div>
+                
                 <div className="result-item">
                   <span>Total Extra Charges:</span>
-                  <span>₹{calculateSelectedSum().totalExtraCharges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span>₹{calculateTotalWithRoundedSTT().totalExtraCharges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="result-item total">
                   <span>Total Investment:</span>

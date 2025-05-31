@@ -1153,3 +1153,43 @@ h1 {
     overflow-y: auto;
   }
 }
+
+/* Charges breakdown section in calculator */
+.charges-breakdown {
+  background-color: rgba(0, 0, 0, 0.3);
+  border-radius: 4px;
+  padding: 10px;
+  margin: 10px 0;
+  border: 1px solid #555;
+}
+
+.charges-breakdown h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  color: #fff;
+  border-bottom: 1px solid #555;
+  padding-bottom: 5px;
+}
+
+.charges-breakdown .charge-item {
+  display: flex;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  font-size: 0.9rem;
+  padding: 4px 0;
+  border-bottom: 1px dotted #444;
+  background-color: #333;
+}
+
+.charges-breakdown .charge-item:last-child {
+  border-bottom: none;
+}
+
+.charges-breakdown .charge-name {
+  color: #bbb;
+}
+
+.charges-breakdown .charge-value {
+  color: #4fc3f7;
+  font-weight: 500;
+}
