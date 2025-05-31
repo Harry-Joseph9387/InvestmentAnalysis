@@ -1009,3 +1009,211 @@
 .reminder-button {
   animation: pulse 2s infinite;
 }
+
+.wallet-transaction-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.wallet-amount-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background-color: #333;
+  color: white;
+  font-size: 16px;
+}
+
+.wallet-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.wallet-buttons button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+.deposit-button {
+  background-color: #28a745;
+  color: white;
+}
+
+.withdraw-button {
+  background-color: #dc3545;
+  color: white;
+}
+
+.deposit-button:hover {
+  background-color: #218838;
+}
+
+.withdraw-button:hover {
+  background-color: #c82333;
+}
+
+/* Utility panel styles */
+.utility-panel-container {
+  position: fixed;
+  width: 85%;
+  border: none;
+  overflow: hidden;
+  top: 0;
+  left: 50%;
+  transform: translate(-50%, 0%);
+  z-index: 100;
+}
+
+.arrow-icon {
+  color: #007bff;
+  font-size: 30px;
+  display: inline-block;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.utility-panel {
+  height: 0;
+  overflow: hidden;
+  transition: height 0.3s ease-out;
+  background-color: black;
+  border-top: none;
+  border-radius: 0 0 8px 8px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  padding: 0 15px;
+  z-index: 100;
+}
+
+.utility-panel-container.open .utility-panel {
+  height: auto;
+  max-height: 300px;
+  padding: 15px;
+  border: 1px solid #ddd;
+}
+
+.utility-section {
+  flex: 1;
+  min-width: 200px;
+  margin: 0 10px 15px 0;
+}
+
+.utility-section h3 {
+  font-size: 16px;
+  margin: 0 0 10px 0;
+  color: white;
+  border-bottom: 1px solid #ddd;
+  padding-bottom: 5px;
+}
+
+.utility-buttons {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.utility-button {
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  padding: 6px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  text-align: center;
+  flex: 1;
+  min-width: 100px;
+  background-color: transparent;
+  color: white;
+}
+
+.utility-button:hover {
+  background-color: #333;
+}
+
+/* Wallet transaction section styles */
+.wallet-transaction-section {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 15px;
+}
+
+.wallet-amount-input {
+  width: 100%;
+  padding: 12px;
+  border-radius: 4px;
+  border: 1px solid #444;
+  background-color: #333;
+  color: white;
+  font-size: 16px;
+}
+
+.wallet-buttons {
+  display: flex;
+  gap: 10px;
+}
+
+.wallet-buttons button {
+  flex: 1;
+  padding: 10px;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: bold;
+  transition: all 0.2s;
+}
+
+@media (max-width: 768px) {
+  .utility-section {
+    flex: 1 0 100%;
+    margin-right: 0;
+  }
+  
+  .utility-buttons,
+  .wallet-buttons {
+    flex-direction: column;
+  }
+  
+  .utility-button,
+  .wallet-buttons button {
+    width: 100%;
+  }
+  
+  .utility-panel-container.open .utility-panel {
+    max-height: 600px;
+    overflow-y: auto;
+  }
+}
+@media (max-width: 578px) {
+  .modal-body{
+    padding:0px;
+    font-size: 12px;
+  }
+  .form-group label, .form-group input{
+    font-size: 12px;
+  }
+  .reminders-table td,.reminders-table th{
+    padding:5px;
+    font-size: 10px;
+    width: 0%;
+  }
+  .reminder-tag.sell{
+    font-size: 8px;
+    padding:5px;
+  }
+  .reminder-modal th{
+    font-size: 8px;
+    
+  }
+  .reminders-list{
+    padding:7px;
+  }
+}

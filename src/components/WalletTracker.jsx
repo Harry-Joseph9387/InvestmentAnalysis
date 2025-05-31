@@ -9,10 +9,8 @@ const WalletTracker = () => {
   // Wallet transactions state (separate from investment transactions)
   const [walletTransactions, setWalletTransactions] = useState([]);
   
-  // State for adding money to wallet
-  const [depositAmount, setDepositAmount] = useState('');
-  // State for withdrawing money from wallet
-  const [withdrawAmount, setWithdrawAmount] = useState('');
+  // State for adding money to wallet - replace separate deposit and withdraw states with a single amount state
+  const [walletAmount, setWalletAmount] = useState('');
 
   // Save status message
   const [saveStatus, setSaveStatus] = useState('');
@@ -551,11 +549,11 @@ const WalletTracker = () => {
   };
 
 // Handle adding money to wallet
-const handleAddMoneyToWallet = () => {
+const handleAddMoneyToWallet = (amount) => {
   try {
     // Validate input
-    const amount = parseFloat(depositAmount);
-    if (isNaN(amount) || amount <= 0) {
+    const amountToAdd = parseFloat(amount);
+    if (isNaN(amountToAdd) || amountToAdd <= 0) {
       setSaveStatus('Please enter a valid positive amount');
       setTimeout(() => setSaveStatus(''), 3000);
       return;
@@ -574,14 +572,14 @@ const handleAddMoneyToWallet = () => {
       // Create a note row for the first deposit
       const noteRow = {
         id: `note-1`,
-        note: `Added ₹${amount.toFixed(3)} to wallet`,
+        note: `Added ₹${amountToAdd.toFixed(3)} to wallet`,
         isNote: true
       };
       
       // Create the transaction row
       const newTransaction = {
         id: 1,
-        walletAmount: amount.toFixed(3),
+        walletAmount: amountToAdd.toFixed(3),
         investments: initialInvestments,
         extraMoneyCaused: '0.000',
         isNote: false
@@ -592,13 +590,13 @@ const handleAddMoneyToWallet = () => {
     } else {
       // Normal case - existing transactions
       const lastTransaction = walletTransactions[walletTransactions.length - 1];
-      const newWalletAmount = (parseFloat(lastTransaction.walletAmount) + amount).toFixed(3);
+      const newWalletAmount = (parseFloat(lastTransaction.walletAmount) + amountToAdd).toFixed(3);
       const nextId = lastTransaction.id + 1;
       
       // Create a note row
       const noteRow = {
         id: `note-${nextId}`,
-        note: `Added ₹${amount.toFixed(3)} to wallet`,
+        note: `Added ₹${amountToAdd.toFixed(3)} to wallet`,
         isNote: true
       };
       
@@ -636,7 +634,7 @@ const handleAddMoneyToWallet = () => {
       companyName: "Wallet",
       transactionNumber: timestamp,
       type: "deposit",
-      amount: amount.toFixed(3),
+      amount: amountToAdd.toFixed(3),
       date: new Date().toISOString()
     });
     
@@ -644,7 +642,7 @@ const handleAddMoneyToWallet = () => {
     localStorage.setItem('companies', JSON.stringify(allCompanies));
     
     // Clear input
-    setDepositAmount('');
+    setWalletAmount('');
     
     setSaveStatus('Money added to wallet successfully!');
     setTimeout(() => setSaveStatus(''), 3000);
@@ -655,11 +653,11 @@ const handleAddMoneyToWallet = () => {
 };
 
   // Handle withdrawing money from wallet
-  const handleWithdrawMoneyFromWallet = () => {
+  const handleWithdrawMoneyFromWallet = (amount) => {
     try {
       // Validate input
-      const amount = parseFloat(withdrawAmount);
-      if (isNaN(amount) || amount <= 0) {
+      const amountToWithdraw = parseFloat(amount);
+      if (isNaN(amountToWithdraw) || amountToWithdraw <= 0) {
         setSaveStatus('Please enter a valid positive amount');
         setTimeout(() => setSaveStatus(''), 3000);
         return;
@@ -677,20 +675,20 @@ const handleAddMoneyToWallet = () => {
       const currentBalance = parseFloat(lastTransaction.walletAmount);
       
       // Check if there's enough money in the wallet
-      if (amount > currentBalance) {
+      if (amountToWithdraw > currentBalance) {
         setSaveStatus('Not enough money in wallet');
         setTimeout(() => setSaveStatus(''), 3000);
         return;
       }
       
       // Calculate new wallet amount
-      const newWalletAmount = (currentBalance - amount).toFixed(3);
+      const newWalletAmount = (currentBalance - amountToWithdraw).toFixed(3);
       const nextId = lastTransaction.id + 1;
       
       // Create a note row
       const noteRow = {
         id: `note-${nextId}`,
-        note: `Withdrew ₹${amount.toFixed(3)} from wallet`,
+        note: `Withdrew ₹${amountToWithdraw.toFixed(3)} from wallet`,
         isNote: true
       };
       
@@ -727,7 +725,7 @@ const handleAddMoneyToWallet = () => {
         companyName: "Wallet",
         transactionNumber: timestamp,
         type: "withdraw",
-        amount: amount.toFixed(3),
+        amount: amountToWithdraw.toFixed(3),
         date: new Date().toISOString()
       });
       
@@ -735,7 +733,7 @@ const handleAddMoneyToWallet = () => {
       localStorage.setItem('companies', JSON.stringify(allCompanies));
       
       // Clear input
-      setWithdrawAmount('');
+      setWalletAmount('');
       
       setSaveStatus('Money withdrawn from wallet successfully!');
       setTimeout(() => setSaveStatus(''), 3000);
@@ -1202,36 +1200,36 @@ const handleAddMoneyToWallet = () => {
         <div className="utility-panel">
           <div className="utility-section">
             <h3>Wallet Management</h3>
-            <div className="wallet-deposit-section">
+            <div className="wallet-transaction-section">
               <input
                 type="number"
-                value={depositAmount}
-                onChange={(e) => setDepositAmount(e.target.value)}
-                placeholder="Amount to add to wallet"
-                className="deposit-input"
+                value={walletAmount}
+                onChange={(e) => setWalletAmount(e.target.value)}
+                placeholder="Enter amount"
+                className="wallet-amount-input"
               />
-              <button 
-                className="deposit-button"
-                onClick={() => {handleAddMoneyToWallet(); setShowUtilityPanel(false);}}
-              >
-                Add Money to Wallet
-              </button>
-            </div>
-            
-            <div className="wallet-withdraw-section">
-              <input
-                type="number"
-                value={withdrawAmount}
-                onChange={(e) => setWithdrawAmount(e.target.value)}
-                placeholder="Amount to withdraw from wallet"
-                className="withdraw-input"
-              />
-              <button 
-                className="withdraw-button"
-                onClick={() => {handleWithdrawMoneyFromWallet(); setShowUtilityPanel(false);}}
-              >
-                Withdraw Money from Wallet
-              </button>
+              <div className="wallet-buttons">
+                <button 
+                  className="deposit-button"
+                  onClick={() => {
+                    handleAddMoneyToWallet(walletAmount); 
+                    setWalletAmount('');
+                    setShowUtilityPanel(false);
+                  }}
+                >
+                  Add Money
+                </button>
+                <button 
+                  className="withdraw-button"
+                  onClick={() => {
+                    handleWithdrawMoneyFromWallet(walletAmount);
+                    setWalletAmount('');
+                    setShowUtilityPanel(false);
+                  }}
+                >
+                  Withdraw Money
+                </button>
+              </div>
             </div>
           </div>
           
@@ -1374,7 +1372,7 @@ const handleAddMoneyToWallet = () => {
                     <thead>
                       <tr>
                         <th>Stock</th>
-                        <th>Quantity</th>
+                        <th>Qtn</th>
                         <th>Price (₹)</th>
                         <th>Type</th>
                         <th>Actions</th>
