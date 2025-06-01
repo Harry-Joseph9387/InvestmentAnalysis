@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import './WalletTracker.css';
+import { useMoney } from '../context/MoneyContext';
 
 const WalletTracker = () => {
   // State for companies and their data from localStorage
@@ -41,6 +42,9 @@ const WalletTracker = () => {
 
   // Add this new state variable for the utility panel
   const [showUtilityPanel, setShowUtilityPanel] = useState(false);
+
+  // Add this to get context access
+  const { setExtraMoneyCaused } = useMoney();
 
   // Load companies data from localStorage when component mounts
   useEffect(() => {
@@ -1188,6 +1192,20 @@ const handleAddMoneyToWallet = (amount) => {
     setTimeout(() => setSaveStatus(''), 3000);
   };
 
+  // Add this to update the context when transactions change
+  useEffect(() => {
+    if (walletTransactions.length > 0) {
+      // Find the last non-note transaction
+      const lastNonNoteTransaction = [...walletTransactions]
+        .reverse()
+        .find(tx => !tx.isNote);
+      
+      if (lastNonNoteTransaction && lastNonNoteTransaction.extraMoneyCaused) {
+        setExtraMoneyCaused(lastNonNoteTransaction.extraMoneyCaused);
+      }
+    }
+  }, [walletTransactions, setExtraMoneyCaused]);
+
   return (
     <div className="wallet-tracker-container">
       <div className="wallet-header">
@@ -1422,7 +1440,17 @@ const handleAddMoneyToWallet = (amount) => {
               </button>
             </div>
             <div className="modal-body">
-              {/* Add your information content here */}
+              <ul>
+                <li><strong>Transaction ID:</strong> Unique number for each transaction row.</li>
+                <li><strong>Amount in Wallet:</strong> Current cash balance available.</li>
+                <li><strong>Company Columns:</strong> Current investment value in each stock.</li>
+                <li><strong>Extra Money Caused:</strong> Profit/loss from selling stocks.</li>
+                <li><strong>Text Rows:</strong> Notes explaining transactions like buys/sells.</li>
+                <li><strong>▶ Button:</strong> Expands to show individual buy transactions.</li>
+                <li><strong>Green Values:</strong> Indicate profits from selling stocks.</li>
+                <li><strong>Red Values:</strong> Indicate losses from selling stocks.</li>
+                <li><strong>Active/Zero Tabs:</strong> Switch between current and past investments.</li>
+              </ul>
             </div>
           </div>
         </div>
