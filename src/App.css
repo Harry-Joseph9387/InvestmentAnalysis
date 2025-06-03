@@ -172,10 +172,10 @@ footer, .app-footer {
 }
 
 /* Responsive adjustments */
-@media (max-width: 768px) {
+/* @media (max-width: 768px) {
   .extra-money-display {
     top: auto;
     bottom: 20px;
     right: 20px;
   }
-}
+} */

@@ -171,34 +171,25 @@ const WalletTracker = () => {
       let extraMoneyCaused = 0;
       
       // Variables to track combined buy transactions
-      let pendingBuyRow = null;
-      let hasPendingBuys = false;
-      let pendingBuyDetails = []; // Array to store individual buy transaction details
-      let allBuyTransactions = {}; // Store all buy transactions here instead of using setState
+      let pendingBuyTransactions = [];
+      let allBuyTransactions = {}; // Store all buy transactions by row ID
       
       // Process each transaction in the global order
-      for (const historyRecord of sortedTransactions) {
+      for (let i = 0; i < sortedTransactions.length; i++) {
+        const historyRecord = sortedTransactions[i];
         const { companyName, transactionNumber, type, amount, transactionType, quantity: recordedQuantity } = historyRecord;
         
         // Handle wallet deposits and withdrawals
         if (companyName === "Wallet") {
-          // If we have pending buy transactions, add them first
-          if (hasPendingBuys && pendingBuyRow) {
-            // Store the individual buy transactions with this row ID
-            pendingBuyRow.hasBuyTransactions = true;
-            pendingBuyRow.buyTransactionCount = pendingBuyDetails.length;
+          // If there are pending buy transactions, add them as a combined row first
+          if (pendingBuyTransactions.length > 0) {
+            const combinedRow = createCombinedBuyRow(pendingBuyTransactions, rowId, currentWalletAmount, currentInvestments, extraMoneyCaused);
+            walletRows.push(combinedRow);
             
-            walletRows.push(pendingBuyRow);
-            
-            // Store buy transactions in our local object
-            if (pendingBuyRow.id) {
-              allBuyTransactions[pendingBuyRow.id] = [...pendingBuyDetails];
-            }
-            
+            // Store individual buy transactions for this row
+            allBuyTransactions[rowId] = [...pendingBuyTransactions];
             rowId++;
-            hasPendingBuys = false;
-            pendingBuyRow = null;
-            pendingBuyDetails = [];
+            pendingBuyTransactions = [];
           }
           
           const transactionAmount = parseFloat(amount) || 0;
@@ -278,6 +269,15 @@ const WalletTracker = () => {
                                  (recordedQuantity && parseFloat(recordedQuantity) < 0) || 
                                  quantity < 0;
         
+        // Check if the next transaction is a non-buy transaction
+        const isLastTransaction = i === sortedTransactions.length - 1;
+        const nextTransaction = !isLastTransaction ? sortedTransactions[i + 1] : null;
+        const isNextNonBuy = nextTransaction && (
+          nextTransaction.companyName === "Wallet" || 
+          nextTransaction.transactionType === 'sell' || 
+          (nextTransaction.quantity && parseFloat(nextTransaction.quantity) < 0)
+        );
+        
         if (!isSellTransaction) {
           // Buy transaction
           const charges = parseFloat(tx.extraCharges) || 0;
@@ -299,65 +299,46 @@ const WalletTracker = () => {
           currentWalletAmount -= totalCost;
           currentInvestments[companyName] = (parseFloat(currentInvestments[companyName] || 0) + totalCost).toFixed(3);
           
-          // Save individual buy transaction details
-          pendingBuyDetails.push({
-            id: `buy-${transactionNumber}`,
+          // Create a buy transaction object with all details
+          const buyTransaction = {
+            transactionId: transactionNumber,
             companyName,
             price,
             quantity,
             charges,
             totalCost,
-            transactionId: transactionNumber,
-            timestamp: new Date().toISOString()
-          });
+            walletAmount: currentWalletAmount.toFixed(3),
+            investments: {...currentInvestments},
+            note: `Bought ${quantity} shares of ${companyName} for ₹${(price * quantity).toFixed(3)} (Price: ₹${price.toFixed(3)}/share, Charges: ₹${charges.toFixed(3)})`
+          };
           
-          if (!hasPendingBuys) {
-            // Create a new row if this is the first buy
-            pendingBuyRow = {
-              id: rowId,
-              walletAmount: currentWalletAmount.toFixed(3),
-              investments: {...currentInvestments},
-              extraMoneyCaused: extraMoneyCaused.toFixed(3),
-              isNote: false,
-              hasBuyTransactions: true,
-              buyTransactionCount: pendingBuyDetails.length
-            };
-            hasPendingBuys = true;
-          } else {
-            // Update the existing pending buy row with the latest values
-            pendingBuyRow = {
-              ...pendingBuyRow,
-              walletAmount: currentWalletAmount.toFixed(3),
-              investments: {...currentInvestments},
-              extraMoneyCaused: extraMoneyCaused.toFixed(3),
-              buyTransactionCount: pendingBuyDetails.length
-            };
+          // Add to pending buy transactions
+          pendingBuyTransactions.push(buyTransaction);
+          
+          // If this is the last transaction or next is non-buy, create a combined row
+          if (isLastTransaction || isNextNonBuy) {
+            const combinedRow = createCombinedBuyRow(pendingBuyTransactions, rowId, currentWalletAmount, currentInvestments, extraMoneyCaused);
+            walletRows.push(combinedRow);
+            
+            // Store individual buy transactions for this row
+            allBuyTransactions[rowId] = [...pendingBuyTransactions];
+            rowId++;
+            pendingBuyTransactions = [];
           }
         } else {
           // Sell transaction
           console.log(`Processing SELL transaction for ${companyName}`);
           
-          // First, add any pending buy transactions as a single row
-          if (hasPendingBuys && pendingBuyRow) {
-            // Store the individual buy transactions with this row ID
-            pendingBuyRow.hasBuyTransactions = true;
-            pendingBuyRow.buyTransactionCount = pendingBuyDetails.length;
+          // First, add any pending buy transactions as a combined row
+          if (pendingBuyTransactions.length > 0) {
+            const combinedRow = createCombinedBuyRow(pendingBuyTransactions, rowId, currentWalletAmount, currentInvestments, extraMoneyCaused);
+            walletRows.push(combinedRow);
             
-            walletRows.push(pendingBuyRow);
-            
-            // Store buy transactions in our local object
-            if (pendingBuyRow.id) {
-              allBuyTransactions[pendingBuyRow.id] = [...pendingBuyDetails];
-            }
-            
+            // Store individual buy transactions for this row
+            allBuyTransactions[rowId] = [...pendingBuyTransactions];
             rowId++;
-            hasPendingBuys = false;
-            pendingBuyRow = null;
-            pendingBuyDetails = [];
+            pendingBuyTransactions = [];
           }
-          
-          // Note: Each sell transaction always creates a new row in the wallet tracker,
-          // so sell transactions that follow a withdrawal will naturally appear on a new row
           
           const sellQuantity = Math.abs(quantity);
           const sellPrice = price;
@@ -455,29 +436,27 @@ const WalletTracker = () => {
             walletAmount: currentWalletAmount.toFixed(3),
             investments: {...currentInvestments},
             extraMoneyCaused: extraMoneyCaused.toFixed(3),
-            isNote: false
+            isNote: false,
+            transactionType: 'sell',
+            companyName: companyName,
+            quantity: sellQuantity,
+            price: sellPrice,
+            charges: sellExtraCharges,
+            profitLoss: profitLoss
           };
           
           // Add rows
           walletRows.push(noteRow, sellRow);
-          
-          // Start a new row counter for the next set of buy transactions
-          rowId++;
         }
       }
       
-      // Add any pending buy transactions at the end
-      if (hasPendingBuys && pendingBuyRow) {
-        // Store the individual buy transactions with this row ID
-        pendingBuyRow.hasBuyTransactions = true;
-        pendingBuyRow.buyTransactionCount = pendingBuyDetails.length;
+      // Add any remaining pending buy transactions
+      if (pendingBuyTransactions.length > 0) {
+        const combinedRow = createCombinedBuyRow(pendingBuyTransactions, rowId, currentWalletAmount, currentInvestments, extraMoneyCaused);
+        walletRows.push(combinedRow);
         
-        walletRows.push(pendingBuyRow);
-        
-        // Store buy transactions in our local object
-        if (pendingBuyRow.id) {
-          allBuyTransactions[pendingBuyRow.id] = [...pendingBuyDetails];
-        }
+        // Store individual buy transactions for this row
+        allBuyTransactions[rowId] = [...pendingBuyTransactions];
       }
       
       // If no transactions were processed, add a default row
@@ -500,6 +479,47 @@ const WalletTracker = () => {
     } catch (error) {
       console.error("Error processing company data:", error);
     }
+  };
+
+  // Helper function to create a combined buy row
+  const createCombinedBuyRow = (buyTransactions, rowId, walletAmount, investments, extraMoneyCaused) => {
+    // Count total shares and cost by company
+    const companySummary = {};
+    
+    buyTransactions.forEach(tx => {
+      if (!companySummary[tx.companyName]) {
+        companySummary[tx.companyName] = {
+          totalShares: 0,
+          totalCost: 0
+        };
+      }
+      companySummary[tx.companyName].totalShares += tx.quantity;
+      companySummary[tx.companyName].totalCost += tx.totalCost;
+    });
+    
+    // Create a summary note
+    let summaryText = buyTransactions.length === 1 
+      ? `Bought ${buyTransactions[0].quantity} shares of ${buyTransactions[0].companyName}`
+      : `Combined ${buyTransactions.length} buy transactions`;
+    
+    // Add company details if multiple companies
+    if (Object.keys(companySummary).length > 1) {
+      summaryText += ": " + Object.entries(companySummary)
+        .map(([company, data]) => `${company} (${data.totalShares} shares)`)
+        .join(", ");
+    }
+    
+    return {
+      id: rowId,
+      walletAmount: walletAmount.toFixed(3),
+      investments: {...investments},
+      extraMoneyCaused: extraMoneyCaused.toFixed(3),
+      isNote: false,
+      transactionType: 'buy',
+      hasBuyTransactions: true,
+      buyTransactionCount: buyTransactions.length,
+      buyTransactionSummary: summaryText
+    };
   };
 
   // Refresh data from localStorage
@@ -926,9 +946,6 @@ const handleAddMoneyToWallet = (amount) => {
     const { investedCompanies } = getTableColumns();
     const allCompanies = investedCompanies;
     
-    // Don't update state here - just use the current state values
-    // (state is updated in the useEffect above)
-
     // Find the first row with any non-zero investment
     let firstNonZeroIndex = walletTransactions.findIndex(
       tx => !tx.isNote && !allInvestmentsZero(tx.investments, allCompanies)
@@ -986,17 +1003,20 @@ const handleAddMoneyToWallet = (amount) => {
                     </tr>
                   ) : (
                     <>
-                      <tr className={`${parseFloat(transaction.walletAmount) < 0 ? "negative-balance" : ""} ${transaction.hasBuyTransactions ? "has-buy-transactions" : ""}`}>
+                      <tr className={`${parseFloat(transaction.walletAmount) < 0 ? "negative-balance" : ""} ${transaction.transactionType === 'buy' ? "buy-transaction" : transaction.transactionType === 'sell' ? "sell-transaction" : ""}`}>
                         <td>
                           {transaction.id}
-                          {transaction.hasBuyTransactions && transaction.buyTransactionCount > 1 && (
-                            <button 
-                              className="toggle-buy-transactions"
-                              onClick={() => toggleBuyTransactions(transaction.id)}
-                              title={expandedBuyRows.includes(transaction.id) ? "Collapse buy transactions" : "Expand buy transactions"}
-                            >
-                              {expandedBuyRows.includes(transaction.id) ? "▼" : "▶"}
-                            </button>
+                          {transaction.transactionType === 'buy' && transaction.hasBuyTransactions && (
+                            <>
+                              <button 
+                                className="toggle-buy-transactions"
+                                onClick={() => toggleBuyTransactions(transaction.id)}
+                                title={expandedBuyRows.includes(transaction.id) ? "Collapse buy transactions" : "Expand buy transactions"}
+                              >
+                                {expandedBuyRows.includes(transaction.id) ? "▼" : "▶"}
+                              </button>
+                              
+                            </>
                           )}
                         </td>
                         <td className="value-display">
@@ -1011,18 +1031,41 @@ const handleAddMoneyToWallet = (amount) => {
                           ₹{transaction.extraMoneyCaused}
                         </td>
                       </tr>
-                      {/* Add expandable rows for individual buy transactions */}
+                      
+                      {/* Show individual buy transactions when expanded */}
                       {transaction.hasBuyTransactions && 
                        expandedBuyRows.includes(transaction.id) && 
                        individualBuyTransactions[transaction.id] && 
                        individualBuyTransactions[transaction.id].map((buyTx, idx) => (
-                        <tr key={`${transaction.id}-buy-${idx}`} className="individual-buy-transaction">
-                          <td className="buy-tx-id">{buyTx.transactionId}</td>
-                          <td colSpan={visibleCompanies.length + 2} className="buy-tx-details">
-                            Bought {buyTx.quantity} shares of {buyTx.companyName} at ₹{buyTx.price} 
-                            (Total: ₹{buyTx.totalCost.toFixed(2)}, Charges: ₹{buyTx.charges.toFixed(2)})
-                          </td>
-                        </tr>
+                        <React.Fragment key={`${transaction.id}-buy-${idx}`}>
+                          <tr className="individual-buy-transaction-note">
+                            <td colSpan={3 + visibleCompanies.length} className="transaction-note">
+                              {buyTx.note}
+                            </td>
+                          </tr>
+                          <tr className="individual-buy-transaction">
+                            <td className="buy-tx-id">
+                              <span className="buy-tx-bullet"></span>
+                              {buyTx.transactionId}
+                            </td>
+                            <td className="value-display">
+                              ₹{buyTx.walletAmount}
+                            </td>
+                            {visibleCompanies.map(company => (
+                              <td key={company} className="value-display">
+                                ₹{buyTx.investments[company] || '0.000'}
+                              </td>
+                            ))}
+                            <td className="value-display">
+                              ₹{transaction.extraMoneyCaused}
+                            </td>
+                          </tr>
+                          {idx === individualBuyTransactions[transaction.id].length - 1 && (
+                            <tr className="buy-transactions-separator">
+                              <td colSpan={3 + visibleCompanies.length}></td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       ))}
                     </>
                   )}

@@ -18,6 +18,12 @@ const roundSTT = (sttValue) => {
   }
 };
 
+// Add this helper function after the roundSTT function
+const roundStampDuty = (stampDutyValue) => {
+  // If stamp duty is less than 1, round to zero
+  return stampDutyValue < 1 ? 0 : stampDutyValue;
+};
+
 const StockAnalysis = () => {
   const [companyName, setCompanyName] = useState('');
   const [companies, setCompanies] = useState([]);
@@ -49,6 +55,7 @@ const StockAnalysis = () => {
   const [showUtilityMenu, setShowUtilityMenu] = useState(false);
   const [showUtilityPanel, setShowUtilityPanel] = useState(false);
   const [lastSelectedCompany, setLastSelectedCompany] = useState('');
+  const [gender, setGender] = useState('female'); // Add gender state with 'male' as default
 
   // Load companies from localStorage when component mounts
   useEffect(() => {
@@ -115,16 +122,20 @@ const StockAnalysis = () => {
       const exchangeCharge = absoluteValue * 0.0000297; // 0.00297%
       const sebiTurnover = absoluteValue * 0.000001;    // 0.0001%
       const ipf = absoluteValue * 0.000001;             // 0.0001%
-      const depository = 3.5;  // Fixed charge
-      const growwFee = absoluteValue >= 100 ? 15 : 0;   // ₹15 if value >= ₹100
-
+      
+      // Fixed DP charges based on gender
+      const dpCharge = gender === 'female' ? 21.54 : 21.83;
+      
       // Calculate GST (18% on brokerage + exchange + sebi)
       const gst = 0.18 * (brokerage + exchangeCharge + sebiTurnover);
       
-      return stt + brokerage + exchangeCharge + sebiTurnover + ipf + depository + growwFee + gst;
+      return stt + brokerage + exchangeCharge + sebiTurnover + ipf + dpCharge + gst;
     } else {
       // Buying charges
-      const stampDuty = absoluteValue * 0.00015;   // 0.015%
+      let stampDuty = absoluteValue * 0.00015;   // 0.015%
+      // Apply new rounding rule for stamp duty
+      stampDuty = roundStampDuty(stampDuty);
+      
       const exchangeCharge = absoluteValue * 0.0000297; // 0.00297%
       const sebiTurnover = absoluteValue * 0.000001;    // 0.0001%
       const ipf = absoluteValue * 0.000001;             // 0.0001%
@@ -1069,28 +1080,24 @@ const saveAllData = () => {
       // Skip invalid transactions
       if (price === 0 || quantity === 0) return;
       
-      // For buy transactions (positive quantity)
+      // Get the transaction value
+      const transactionValue = price * Math.abs(quantity);
+      const extraCharges = parseFloat(tx.extraCharges) || 0;
+      
+      // For buy transactions (positive quantity) - negative from wallet
       if (quantity > 0) {
-        totalInvestment += price * quantity;
+        // Negative sign since money is going out of wallet
+        totalInvestment -= (transactionValue + extraCharges);
         totalShares += quantity;
-        
-        // Use the pre-calculated extraCharges which includes the rounded STT
-        totalExtraCharges += parseFloat(tx.extraCharges) || 0;
       } 
-      // For sell transactions (negative quantity)
+      // For sell transactions (negative quantity) - positive to wallet
       else if (quantity < 0) {
-        // For sells, we need to use FIFO to determine the correct cost basis
-        // This is complex to implement here, so we'll show a warning instead
-        // and use the transaction's direct values
+        // Positive sign since money is coming into wallet
+        totalInvestment += (transactionValue - extraCharges);
         totalShares += quantity; // Will reduce the total (quantity is negative)
-        
-        // Use the pre-calculated extraCharges which includes the rounded STT
-        totalExtraCharges += parseFloat(tx.extraCharges) || 0;
-        
-        // For sell transactions, we'll use the absolute value of quantity * price
-        // as a negative investment value
-        totalInvestment -= Math.abs(price * quantity);
       }
+      
+      totalExtraCharges += extraCharges;
     });
     
     return {
@@ -1437,8 +1444,7 @@ const saveAllData = () => {
         sebiTurnover: 0,
         stampDuty: 0,
         ipf: 0,
-        depository: 0,
-        growwFee: 0,
+        dpCharge: 0,
         gst: 0
       };
     }
@@ -1453,8 +1459,7 @@ const saveAllData = () => {
     let totalSebiTurnover = 0;
     let totalStampDuty = 0;
     let totalIpf = 0;
-    let totalDepository = 0;
-    let totalGrowwFee = 0;
+    let totalDpCharge = 0;
     let totalGst = 0;
     
     // For each selected transaction, calculate its individual charges
@@ -1500,12 +1505,9 @@ const saveAllData = () => {
       totalGst += gst;
       
       if (isSelling) {
-        // Selling specific charges
-        const depository = 3.5; // Fixed
-        const growwFee = absoluteValue >= 100 ? 15 : 0;
-        
-        totalDepository += depository;
-        totalGrowwFee += growwFee;
+        // Selling specific charges - updated with fixed DP charge
+        const dpCharge = gender === 'female' ? 21.54 : 21.83;
+        totalDpCharge += dpCharge;
       } else {
         // Buying specific charge - Stamp Duty
         const stampDuty = absoluteValue * 0.00015; // 0.015%
@@ -1520,8 +1522,7 @@ const saveAllData = () => {
       sebiTurnover: totalSebiTurnover,
       stampDuty: totalStampDuty,
       ipf: totalIpf,
-      depository: totalDepository,
-      growwFee: totalGrowwFee,
+      dpCharge: totalDpCharge,
       gst: totalGst
     };
   };
@@ -1567,6 +1568,9 @@ const saveAllData = () => {
 
   return (
     <div className="stock-analysis-container">
+      {/* <p>dont knwo why grow have placed female dp charges on a male acc</p>
+      <p>why stamp duty charges are not applide to every buy transaction i maek or is there any criteria to be satisfied for stamp charges to be apllied</p> */}
+      
       {/* <h1>Stock Investment Analysis</h1> */}
       {/* <div className="top-controls">
         <button 
@@ -1594,6 +1598,9 @@ const saveAllData = () => {
             </div>
           </div>
           <div className="calculator-body">
+            {/* Gender selection buttons */}
+            
+            
             <p>Select transactions from the table to calculate their sum.</p>
             {selectedTransactions.length > 0 ? (
               <div className="calculator-results">
@@ -1639,21 +1646,14 @@ const saveAllData = () => {
                   {calculateDetailedCharges().stampDuty > 0 && (
                     <div className="charge-item">
                       <span className="charge-name">Stamp Duty:</span>
-                      <span className="charge-value">₹{calculateDetailedCharges().stampDuty.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="charge-value">0.015% (rounded to 0 if less than ₹1)</span>
                     </div>
                   )}
                   
-                  {/* Sell specific charges */}
-                  {calculateDetailedCharges().depository > 0 && (
+                  {calculateDetailedCharges().dpCharge > 0 && (
                     <div className="charge-item">
-                      <span className="charge-name">Depository:</span>
-                      <span className="charge-value">₹{calculateDetailedCharges().depository.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                  )}
-                  {calculateDetailedCharges().growwFee > 0 && (
-                    <div className="charge-item">
-                      <span className="charge-name">Groww Fee:</span>
-                      <span className="charge-value">₹{calculateDetailedCharges().growwFee.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                      <span className="charge-name">DP Charges:</span>
+                      <span className="charge-value">₹{calculateDetailedCharges().dpCharge.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                     </div>
                   )}
                 </div>
@@ -1664,7 +1664,11 @@ const saveAllData = () => {
                 </div>
                 <div className="result-item total">
                   <span>Total Investment:</span>
-                  <span>₹{calculateSelectedSum().totalInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                  <span>
+                    {calculateSelectedSum().totalInvestment >= 0 
+                      ? `+₹${calculateSelectedSum().totalInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
+                      : `-₹${Math.abs(calculateSelectedSum().totalInvestment).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                  </span>
                 </div>
                 {hasSellTransactionsSelected() && (
                   <div className="calculator-warning">
@@ -1742,12 +1746,12 @@ const saveAllData = () => {
                 <span className="charge-name">0.0001%</span>
               </div>
               <div className="charge-item">
-                <span className="charge-name">Depository:</span>
-                <span className="charge-value">₹3.5 (Fixed)</span>
+                <span className="charge-name">DP Charges:</span>
+                <span className="charge-value">₹21.83 (Male), ₹21.54 (Female)</span>
               </div>
               <div className="charge-item">
-                <span className="charge-name">Groww Fee:</span>
-                <span className="charge-value">₹15 (only if transaction value ≥ ₹100)</span>
+                <span className="charge-name">Groww Charges:</span>
+                <span className="charge-value">Rs15 per scrip per day (Rs0 if debit value {'<'} Rs50)</span>
               </div>
             </div>
           </div>
@@ -1819,6 +1823,31 @@ const saveAllData = () => {
         
         <div className="utility-panel">
           <div className="utility-section">
+          <div className="gender-selection">
+              <span>Investor Gender:</span>
+              <div className="gender-buttons">
+                <button 
+                  className={gender === 'male' ? 'active' : ''}
+                  onClick={() => {
+                    setGender('male');
+                    // Recalculate all transactions with updated gender setting
+                    setTimeout(updateTransactions, 50);
+                  }}
+                >
+                  Male
+                </button>
+                <button 
+                  className={gender === 'female' ? 'active' : ''}
+                  onClick={() => {
+                    setGender('female');
+                    // Recalculate all transactions with updated gender setting
+                    setTimeout(updateTransactions, 50);
+                  }}
+                >
+                  Female
+                </button>
+              </div>
+            </div>
             <h3>Data Management</h3>
             <div className="utility-buttons">
               <button 

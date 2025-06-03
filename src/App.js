@@ -33,20 +33,20 @@ const ExtraMoneyDisplay = () => {
 function App() {
   return (
     <MoneyProvider>
-      <Router>
-        <div className="App">
-          <nav className="app-nav">
-            <Link to="/" className="nav-link">Stock Analysis</Link>
-            <Link to="/wallet" className="nav-link">Wallet Tracker</Link>
-          </nav>
+    <Router>
+      <div className="App">
+        <nav className="app-nav">
+          <Link to="/" className="nav-link">Stock Analysis</Link>
+          <Link to="/wallet" className="nav-link">Wallet Tracker</Link>
+        </nav>
           <ExtraMoneyDisplay />
 
-          <Routes>
-            <Route path="/" element={<StockAnalysis />} />
-            <Route path="/wallet" element={<WalletTracker />} />
-          </Routes>
-        </div>
-      </Router>
+        <Routes>
+          <Route path="/" element={<StockAnalysis />} />
+          <Route path="/wallet" element={<WalletTracker />} />
+        </Routes>
+      </div>
+    </Router>
     </MoneyProvider>
   );
 }

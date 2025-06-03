@@ -1193,3 +1193,58 @@ h1 {
   color: #4fc3f7;
   font-weight: 500;
 }
+
+/* Add these styles for gender selection */
+.gender-selection {
+  display: flex;
+  align-items: center;
+  margin-bottom: 15px;
+  padding: 8px;
+  background-color: rgba(0, 0, 0, 0.05);
+  border-radius: 4px;
+}
+
+.gender-selection span {
+  margin-right: 10px;
+  font-weight: 500;
+}
+
+.gender-buttons {
+  display: flex;
+  gap: 8px;
+}
+
+.gender-buttons button {
+  padding: 5px 15px;
+  border: 1px solid #ccc;
+  border-radius: 4px;
+  /* background-color: #f5f5f5; */
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.gender-buttons button.active {
+  background-color: #4CAF50;
+  color: white;
+  border-color: #4CAF50;
+}
+
+.gender-buttons button:hover:not(.active) {
+  background-color: #575656;
+}
+
+/* Improved styling for charges display */
+.charges-breakdown {
+  margin: 10px 0;
+  padding: 10px;
+  border: 1px solid #e0e0e0;
+  border-radius: 4px;
+  background-color: rgba(0, 0, 0, 0.02);
+}
+
+.charges-breakdown h4 {
+  margin-top: 0;
+  margin-bottom: 10px;
+  font-size: 14px;
+  color: #555;
+}

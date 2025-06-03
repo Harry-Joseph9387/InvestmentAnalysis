@@ -28,9 +28,9 @@
 
 .wallet-table {
   width: 100%;
+  table-layout: fixed;
   border-collapse: collapse;
   font-size: 14px;
-  font-family: 'Poppins', 'Roboto', sans-serif;
 }
 
 .wallet-table thead {
@@ -46,6 +46,9 @@
   border: 1px solid var(--dark-border);
   font-weight: 500;
   color: var(--dark-text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .wallet-table th {
@@ -339,9 +342,19 @@
   text-align: center;
 }
 
-.tid{
-  width: 10px;
+.tid-column {
+  width: 50px; /* Transaction ID needs less space */
 }
+
+.wallet-amount-column, .extra-money-column {
+  width: 100px; /* Medium space for currency values */
+}
+
+.company-column {
+  /* This will expand to fill the remaining space */
+  width: auto;
+}
+
 .value-display {
   text-align: right;
   /* font-family:'Gill Sans', 'Gill Sans MT', Calibri, 'Trebuchet MS', sans-serif ; */
@@ -873,6 +886,9 @@
   .wallet-table {
     font-size: 0.9rem;
   }
+  .priority-4 {
+    display: none;
+  }
 }
 
 @media (max-width: 992px) {
@@ -883,6 +899,9 @@
   .wallet-table th,
   .wallet-table td {
     padding: 8px 5px;
+  }
+  .priority-3 {
+    display: none;
   }
 }
 
@@ -899,6 +918,9 @@
   .tid {
     width: 40px;
     max-width: 40px;
+  }
+  .priority-2 {
+    display: none;
   }
 }
 
@@ -930,17 +952,29 @@
     width: 0px;
   }
   
+  .priority-1 {
+    display: none;
+  }
 }
 
 /* Buy transaction toggle button */
 .toggle-buy-transactions {
   background: none;
   border: none;
-  color: #0066cc;
-  font-size: 12px;
+  font-size: 18px !important; /* Larger font */
   cursor: pointer;
   padding: 0 5px;
   margin-left: 5px;
+  color: #2196F3 !important; /* Brighter blue */
+  display: inline-block !important;
+  font-weight: bold;
+  position: absolute;
+  left:0px;
+}
+
+.toggle-buy-transactions:hover {
+  transform: scale(1.2);
+  color: #0d47a1 !important; /* Darker blue on hover */
 }
 
 .has-buy-transactions {
@@ -948,24 +982,66 @@
 }
 
 .individual-buy-transaction {
-  background-color: #f9f9f9;
+  background-color: rgba(76, 175, 80, 0.05);
   font-size: 0.9em;
+  display: table-row !important;
+  border-left: 4px solid #4CAF50;
+}
+
+.individual-buy-transaction-note {
+  background-color: rgba(76, 175, 80, 0.05);
+  border-top: 1px dashed #ccc;
+  display: table-row !important;
+  border-left: 4px solid #4CAF50;
+}
+
+.individual-buy-transaction td,
+.individual-buy-transaction-note td {
+  padding-left: 20px !important;
 }
 
 .individual-buy-transaction .buy-tx-id {
   text-align: right;
   color: #666;
   font-style: italic;
+  padding-left: 30px !important;
+  position: relative;
 }
 
-.individual-buy-transaction .buy-tx-details {
+.individual-buy-transaction .buy-tx-id::before {
+  content: "•";
+  position: absolute;
+  left: 15px;
+  color: #4CAF50;
+  font-weight: bold;
+}
+
+.individual-buy-transaction-note .transaction-note {
+  font-style: italic;
+  font-size: 0.9em;
+  padding-left: 30px !important;
+  position: relative;
   text-align: left;
-  padding-left: 10px;
-  color: #444;
 }
 
-.buy-tx-details {
-  border-bottom: 1px dashed #ddd;
+.individual-buy-transaction-note .transaction-note::before {
+  content: "\"";
+  position: absolute;
+  left: 15px;
+  color: #4CAF50;
+  font-weight: bold;
+  font-size: 1.2em;
+}
+
+.individual-buy-transaction-note .transaction-note::after {
+  content: "\"";
+  color: #4CAF50;
+  font-weight: bold;
+  font-size: 1.2em;
+}
+
+.individual-buy-transaction:last-of-type {
+  border-bottom: 1px dashed #ccc;
 }
 
 /* Add subtle background colors to reminder rows */
@@ -1028,6 +1104,7 @@
 }
 .wallet-table td, .wallet-table th{
   max-width: 80px;
+  position: relative
 }
 .wallet-buttons {
   display: flex;
@@ -1218,4 +1295,120 @@
   .reminders-list{
     padding:7px;
   }
+}
+
+/* Add these styles for buy and sell transactions */
+.buy-transaction {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.sell-transaction {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* Update these existing styles */
+.individual-buy-transaction {
+  display: none; /* Hide the old expandable rows since we now show each buy as its own row */
+}
+
+.toggle-buy-transactions {
+  display: none; /* Hide the toggle button since we don't need it anymore */
+}
+
+/* Update styles for buy transactions */
+.buy-transaction {
+  background-color: rgba(76, 175, 80, 0.1);
+}
+
+.sell-transaction {
+  background-color: rgba(244, 67, 54, 0.1);
+}
+
+/* Toggle button for buy transactions */
+.toggle-buy-transactions {
+  background: none;
+  border: none;
+  font-size: 14px !important;
+  cursor: pointer;
+  padding: 0 5px;
+  margin-left: 5px;
+  color: #0066cc;
+  display: inline-block !important; /* Force display */
+}
+
+.toggle-buy-transactions:hover {
+  transform: scale(1.2);
+}
+
+/* Individual buy transaction styling */
+.individual-buy-transaction {
+  background-color: rgba(76, 175, 80, 0.05);
+  font-size: 0.9em;
+  display: table-row !important; /* Force display */
+}
+
+.individual-buy-transaction-note {
+  background-color: rgba(76, 175, 80, 0.05);
+  border-top: 1px dashed #ccc;
+  display: table-row !important; /* Force display */
+}
+
+.individual-buy-transaction .buy-tx-id {
+  text-align: right;
+  color: #666;
+  font-style: italic;
+  padding-left: 20px;
+}
+
+.buy-transaction-summary {
+  font-size: 0.85em;
+  color: #555;
+  font-style: italic;
+  margin-left: 5px;
+}
+
+/* Add a bullet point element */
+.buy-tx-bullet {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  background-color: #4CAF50;
+  border-radius: 50%;
+  margin-right: 10px;
+}
+
+/* Add a separator row after the last buy transaction */
+.buy-transactions-separator {
+  height: 8px;
+  background-color: transparent;
+}
+
+/* Make the toggle button more prominent */
+.toggle-buy-transactions {
+  /* background-color: #e8f5e9; */
+  border-radius: 50%;
+  width: 24px;
+  height: 24px;
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  color: #2e7d32 !important;
+  font-weight: bold;
+  margin-left: 8px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  right:0;
+}
+
+.toggle-buy-transactions:hover {
+  /* background-color: #c8e6c9; */
+  transform: scale(1.1);
+}
+
+/* Style the buy transaction summary text */
+.buy-transaction-summary {
+  font-size: 0.85em;
+  color: #555;
+  font-style: italic;
+  margin-left: 5px;
+  border-bottom: 1px dotted #aaa;
 }
