@@ -56,6 +56,19 @@ const StockAnalysis = () => {
   const [showUtilityPanel, setShowUtilityPanel] = useState(false);
   const [lastSelectedCompany, setLastSelectedCompany] = useState('');
   const [gender, setGender] = useState('female'); // Add gender state with 'male' as default
+  // First, add a new state for the live profit calculation
+  const [liveProfit, setLiveProfit] = useState({ 
+    calculated: false,
+    sellValue: 0,
+    originalCost: 0,
+    buyingCharges: 0,
+    sellingCharges: 0,
+    totalCharges: 0,
+    profitLoss: 0,
+    quantity: 0
+  });
+  // Add this state near the other state declarations
+  const [transactionType, setTransactionType] = useState('buy');
 
   // Load companies from localStorage when component mounts
   useEffect(() => {
@@ -1324,6 +1337,131 @@ const saveAllData = () => {
     }
   };
 
+  // Then add a function to calculate the live profit (place this after other function definitions)
+  const calculateLiveProfit = () => {
+    // Only calculate if we have price and a company
+    if (!quickPrice || !companyName) {
+      setLiveProfit({ calculated: false });
+      return;
+    }
+
+    const price = parseFloat(quickPrice);
+    
+    // Skip invalid price
+    if (isNaN(price) || price <= 0) {
+      setLiveProfit({ calculated: false });
+      return;
+    }
+    
+    // Get quantity or use default 1 for calculation
+    let quantity = parseFloat(quickQuantity) || 1;
+    
+    // Apply sign based on transaction type
+    if (transactionType === 'sell' && quantity > 0) {
+      quantity = -quantity;
+    } else if (transactionType === 'buy' && quantity < 0) {
+      quantity = Math.abs(quantity);
+    }
+    
+    // Check if this is a sell transaction
+    const isSellTransaction = transactionType === 'sell';
+    
+    if (!isSellTransaction) {
+      // For buy transactions, just show the charges
+      const totalStockPrice = price * Math.abs(quantity);
+      const extraCharges = calculateExtraCharges(totalStockPrice, Math.abs(quantity));
+      
+      setLiveProfit({
+        calculated: true,
+        sellValue: 0,
+        originalCost: totalStockPrice,
+        buyingCharges: extraCharges,
+        sellingCharges: 0,
+        totalCharges: extraCharges,
+        profitLoss: 0,
+        quantity: Math.abs(quantity),
+        isBuy: true
+      });
+    } else {
+      // For sell transactions, calculate potential profit/loss
+      const sellQuantity = Math.abs(quantity);
+      const sellValue = price * sellQuantity;
+      
+      // Find the cost basis using FIFO
+      let costBasisOfSoldShares = 0;
+      let buyingChargesTotal = 0;
+      let remainingToSell = sellQuantity;
+      let sharesForFifo = [];
+      
+      // Create FIFO tracking of all previous buy transactions
+      for (let i = 0; i < transactions.length; i++) {
+        const tx = transactions[i];
+        const txPrice = parseFloat(tx.price) || 0;
+        const txQuantity = parseFloat(tx.quantity) || 0;
+        const txExtraCharges = parseFloat(tx.extraCharges) || 0;
+        
+        // Only include buy transactions
+        if (txPrice > 0 && txQuantity > 0) {
+          sharesForFifo.push({
+            price: txPrice,
+            quantity: txQuantity,
+            remaining: txQuantity,
+            extraCharges: txExtraCharges,
+            extraChargesPerShare: txExtraCharges / txQuantity
+          });
+        }
+      }
+      
+      // Apply FIFO to calculate cost basis and include proportional buying charges
+      for (let j = 0; j < sharesForFifo.length && remainingToSell > 0; j++) {
+        const buyLot = sharesForFifo[j];
+        
+        if (buyLot.remaining > 0) {
+          const sharesToSellFromLot = Math.min(buyLot.remaining, remainingToSell);
+          
+          // Calculate cost basis of these shares
+          costBasisOfSoldShares += (buyLot.price * sharesToSellFromLot);
+          
+          // Add proportional buying charges for these shares
+          buyingChargesTotal += (buyLot.extraChargesPerShare * sharesToSellFromLot);
+          
+          // Reduce remaining shares in this lot
+          buyLot.remaining -= sharesToSellFromLot;
+          
+          // Reduce remaining shares to sell
+          remainingToSell -= sharesToSellFromLot;
+        }
+      }
+      
+      // Calculate extra charges for the sell transaction
+      const sellCharges = calculateExtraCharges(sellValue, -sellQuantity);
+      
+      // Calculate total charges (buying + selling)
+      const totalCharges = buyingChargesTotal + sellCharges;
+      
+      // Calculate profit/loss (includes both buying and selling charges)
+      const profitLoss = sellValue - costBasisOfSoldShares - totalCharges;
+      
+      // Update live profit state
+      setLiveProfit({
+        calculated: true,
+        sellValue: sellValue,
+        originalCost: costBasisOfSoldShares,
+        buyingCharges: buyingChargesTotal,
+        sellingCharges: sellCharges,
+        totalCharges: totalCharges,
+        profitLoss: profitLoss,
+        quantity: sellQuantity,
+        isBuy: false
+      });
+    }
+  };
+
+  // Update the useEffect to include transactionType in the dependencies
+  useEffect(() => {
+    calculateLiveProfit();
+  }, [quickPrice, quickQuantity, companyName, transactionType]);
+
   // Find and modify the useEffect that handles page unload events
   useEffect(() => {
     let exitNotification = null;
@@ -1979,34 +2117,81 @@ const saveAllData = () => {
             />
           )}
           
-          {/* Quick Transaction Form with Save Button */}
+          {/* Quick Transaction Form with Save Button and Total Cost/Profit Display */}
           <div className="quick-transaction">
             <div className="quick-transaction-inputs">
-            <input
-              type="number"
-              value={quickPrice}
-              onChange={e => setQuickPrice(e.target.value)}
-              placeholder="Price"
-              className="quick-input"
-              step="0.01"
-            />
-            <input
-              type="text"
-              value={quickQuantity}
-              onChange={e => setQuickQuantity(e.target.value.replace(/[^0-9.\-]/g, ''))}
-              placeholder="Quantity"
-              className="quick-input"
-              inputMode="decimal"
-            />
+              <select 
+                className="transaction-type-select"
+                value={transactionType}
+                onChange={e => {
+                  const isSellSelected = e.target.value === 'sell';
+                  setTransactionType(e.target.value);
+                  
+                  if (quickQuantity) {
+                    // If there's an existing quantity, make it negative for sell or positive for buy
+                    const absQuantity = Math.abs(parseFloat(quickQuantity)).toString();
+                    setQuickQuantity(isSellSelected ? '-' + absQuantity : absQuantity);
+                  }
+                  
+                  // Force recalculation of profit/loss immediately
+                  setTimeout(calculateLiveProfit, 0);
+                }}
+              >
+                <option value="buy">Buy</option>
+                <option value="sell">Sell</option>
+              </select>
+              <input
+                type="number"
+                value={quickPrice}
+                onChange={e => setQuickPrice(e.target.value)}
+                placeholder="Price"
+                className="quick-input"
+                step="0.01"
+              />
+              <input
+                type="text"
+                value={quickQuantity ? Math.abs(parseFloat(quickQuantity)).toString() : ''}
+                onChange={e => {
+                  // Only allow positive numbers
+                  const value = e.target.value.replace(/[^0-9.]/g, '');
+                  
+                  // Apply sign based on transaction type
+                  setQuickQuantity(transactionType === 'sell' ? '-' + value : value);
+                }}
+                placeholder="Quantity"
+                className="quick-input"
+                inputMode="decimal"
+              />
             </div>
-            <button 
-              className="save-button"
-              onClick={handleSaveTransactions}
-              title="Save Transactions"
-            >
-              Save Transactions
-            </button>
+            
+            <div className="save-button-container">
+              <button 
+                className="save-button"
+                onClick={handleSaveTransactions}
+                title="Save Transactions"
+              >
+                Save Transactions
+              </button>
+              
+              {/* Inline Total Cost/Profit Display */}
+              {liveProfit.calculated && (
+                <div className="inline-profit-display">
+                  {liveProfit.isBuy ? (
+                    <span className="total-cost">
+                      Total Cost: ₹{(liveProfit.originalCost + liveProfit.buyingCharges).toFixed(2)}
+                    </span>
+                  ) : (
+                    <span className={`total-profit ${liveProfit.profitLoss >= 0 ? 'profit' : 'loss'}`}>
+                      {liveProfit.profitLoss >= 0 ? 'Profit: ' : 'Loss: '}
+                      ₹{Math.abs(liveProfit.profitLoss).toFixed(2)}
+                    </span>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
+          
+          {/* Remove the original live profit display that was below the inputs */}
         </div>
       </div>
 
