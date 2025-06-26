@@ -69,6 +69,8 @@ const StockAnalysis = () => {
   });
   // Add this state near the other state declarations
   const [transactionType, setTransactionType] = useState('buy');
+  // Add this state near your other useStates
+  const [showSellPL, setShowSellPL] = useState(false);
 
   // Load companies from localStorage when component mounts
   useEffect(() => {
@@ -488,16 +490,10 @@ const StockAnalysis = () => {
             const buyLot = sharesForFifo[j];
             
             if (buyLot.remaining > 0) {
-              const sharesToSellFromLot = Math.min(buyLot.remaining, remainingToSell);
-              
-              // Calculate cost basis of these shares
-              costBasisOfSoldShares += (buyLot.price * sharesToSellFromLot);
-              
-              // Reduce remaining shares in this lot
-              buyLot.remaining -= sharesToSellFromLot;
-              
-              // Reduce remaining shares to sell
-              remainingToSell -= sharesToSellFromLot;
+              const used = Math.min(buyLot.remaining, remainingToSell);
+              costBasisOfSoldShares += (buyLot.price * used);
+              buyLot.remaining -= used;
+              remainingToSell -= used;
             }
           }
           
@@ -1066,60 +1062,162 @@ const saveAllData = () => {
 
   // Add a function to toggle transaction selection for calculator
   const toggleTransactionSelection = (id) => {
+    const txIndex = transactions.findIndex(tx => tx.id === id);
+    const tx = transactions[txIndex];
+    const isSell = tx && parseFloat(tx.quantity) < 0;
+
     if (selectedTransactions.includes(id)) {
+      // Deselecting: remove sell and its FIFO buys
       setSelectedTransactions(selectedTransactions.filter(txId => txId !== id));
+      if (isSell) {
+        const fifoIds = getFifoBuyTransactionIds(txIndex);
+        setSelectedTransactions(prev => prev.filter(txId => !fifoIds.includes(txId)));
+      }
     } else {
-      setSelectedTransactions([...selectedTransactions, id]);
+      if (isSell) {
+        // --- New logic for "in-chain" previous sells ---
+        // 1. Simulate FIFO up to this sell, tracking which sells are "in the chain"
+        let buyLots = [];
+        let neededSellIndexes = [];
+        let remainingToSell = Math.abs(parseFloat(tx.quantity));
+
+        // Build buy lots and process sells up to and including this sell
+        for (let i = 0; i <= txIndex; i++) {
+          const t = transactions[i];
+          const price = parseFloat(t.price) || 0;
+          const quantity = parseFloat(t.quantity) || 0;
+          if (price > 0 && quantity > 0) {
+            buyLots.push({ id: t.id, remaining: quantity });
+          } else if (quantity < 0) {
+            // For each sell, simulate FIFO
+            let toSell = Math.abs(quantity);
+            let usedAny = false;
+            for (let lot of buyLots) {
+              if (lot.remaining > 0 && toSell > 0) {
+                const used = Math.min(lot.remaining, toSell);
+                lot.remaining -= used;
+                toSell -= used;
+                usedAny = true;
+              }
+            }
+            // If this is the current sell, break after processing
+            if (i === txIndex) break;
+            // If after this sell, there are still buy shares left, mark this sell as "in chain"
+            const totalRemaining = buyLots.reduce((sum, lot) => sum + lot.remaining, 0);
+            if (usedAny && totalRemaining > 0) {
+              neededSellIndexes.push(i);
+            }
+          }
+        }
+
+        // 2. Collect all their IDs and their FIFO buy IDs
+        let allIdsToSelect = [];
+        // Add all "in-chain" previous sells
+        neededSellIndexes.forEach(sellIdx => {
+          allIdsToSelect.push(transactions[sellIdx].id);
+          const fifoIds = getFifoBuyTransactionIds(sellIdx);
+          allIdsToSelect.push(...fifoIds);
+        });
+        // Add the current sell and its FIFO buys
+        allIdsToSelect.push(transactions[txIndex].id);
+        const fifoIds = getFifoBuyTransactionIds(txIndex);
+        allIdsToSelect.push(...fifoIds);
+
+        setSelectedTransactions([...new Set([...selectedTransactions, ...allIdsToSelect])]);
+      } else {
+        setSelectedTransactions([...selectedTransactions, id]);
+      }
     }
   };
 
   // Add a function to calculate the sum of selected transactions
   const calculateSelectedSum = () => {
     if (selectedTransactions.length === 0) return { totalInvestment: 0, totalShares: 0, totalExtraCharges: 0 };
-    
-    // Get selected transactions
-    const selectedTxs = transactions.filter(tx => selectedTransactions.includes(tx.id));
-    
-    // Calculate direct sum of selected transactions
+  
+    // Get selected transactions, sorted by their order in the table
+    const selectedTxs = transactions
+      .filter(tx => selectedTransactions.includes(tx.id))
+      .sort((a, b) => transactions.findIndex(t => t.id === a.id) - transactions.findIndex(t => t.id === b.id));
+  
     let totalInvestment = 0;
     let totalShares = 0;
     let totalExtraCharges = 0;
-    
-    // For each selected transaction, calculate its individual contribution
-    selectedTxs.forEach(tx => {
+  
+    // For FIFO tracking
+    let fifoBuyLots = [];
+    // Build up FIFO buy lots with their charges
+    transactions.forEach((tx, idx) => {
       const price = parseFloat(tx.price) || 0;
       const quantity = parseFloat(tx.quantity) || 0;
-      
-      // Skip invalid transactions
-      if (price === 0 || quantity === 0) return;
-      
-      // Get the transaction value
-      const transactionValue = price * Math.abs(quantity);
       const extraCharges = parseFloat(tx.extraCharges) || 0;
-      
-      // For buy transactions (positive quantity) - negative from wallet
-      if (quantity > 0) {
-        // Negative sign since money is going out of wallet
-        totalInvestment -= (transactionValue + extraCharges);
-        totalShares += quantity;
-      } 
-      // For sell transactions (negative quantity) - positive to wallet
-      else if (quantity < 0) {
-        // Positive sign since money is coming into wallet
-        totalInvestment += (transactionValue - extraCharges);
-        totalShares += quantity; // Will reduce the total (quantity is negative)
+      if (price > 0 && quantity > 0) {
+        fifoBuyLots.push({
+          id: tx.id,
+          price,
+          quantity,
+          remaining: quantity,
+          extraCharges,
+          extraChargesPerShare: extraCharges / quantity
+        });
       }
-      
-      totalExtraCharges += extraCharges;
+      // Don't process sells here, only use for FIFO
     });
-    
+  
+    // Now process selected transactions
+    selectedTxs.forEach((tx) => {
+      const price = parseFloat(tx.price) || 0;
+      const quantity = parseFloat(tx.quantity) || 0;
+      const extraCharges = parseFloat(tx.extraCharges) || 0;
+  
+      if (price === 0 || quantity === 0) return;
+  
+      if (quantity > 0) {
+        // Buy transaction: include only if selected
+        totalInvestment -= (price * quantity + extraCharges);
+        totalShares += quantity;
+        totalExtraCharges += extraCharges;
+      } else if (quantity < 0) {
+        // Sell transaction: need to calculate proportional buy charges for shares sold
+        const sellQuantity = Math.abs(quantity);
+        let remainingToSell = sellQuantity;
+        let costBasisOfSoldShares = 0;
+        let proportionalBuyCharges = 0;
+  
+        // For each buy lot, in FIFO order, use up shares
+        for (let lot of fifoBuyLots) {
+          if (lot.remaining > 0 && remainingToSell > 0) {
+            const sharesToSellFromLot = Math.min(lot.remaining, remainingToSell);
+            costBasisOfSoldShares += lot.price * sharesToSellFromLot;
+            proportionalBuyCharges += lot.extraChargesPerShare * sharesToSellFromLot;
+            lot.remaining -= sharesToSellFromLot;
+            remainingToSell -= sharesToSellFromLot;
+          }
+          if (remainingToSell <= 0) break;
+        }
+  
+        // Sell charges for this transaction
+        const sellCharges = extraCharges;
+  
+        // Total charges = proportional buy charges + sell charges
+        const totalCharges = proportionalBuyCharges + sellCharges;
+  
+        // Profit/loss for this sell
+        const sellValue = price * sellQuantity;
+        const profitLoss = sellValue - costBasisOfSoldShares - totalCharges;
+  
+        // For summary, treat as "money in" (positive) for sells
+        totalInvestment += profitLoss + totalCharges; // This is equivalent to sellValue - costBasisOfSoldShares
+        totalShares += quantity; // quantity is negative
+        totalExtraCharges += totalCharges;
+      }
+    });
+  
     return {
       totalInvestment,
       totalShares,
       totalExtraCharges
     };
   };
-
   // Check if any selected transactions are sell transactions
   const hasSellTransactionsSelected = () => {
     if (selectedTransactions.length === 0) return false;
@@ -1179,66 +1277,21 @@ const saveAllData = () => {
       
       // If it's a sell transaction, prepare the profit/loss info
       if (isSellTransaction) {
-        // For a sell transaction, we need to calculate the profit/loss
-        const sellQuantity = Math.abs(quantity);
-        const sellValue = price * sellQuantity;
-        
-        // Find the cost basis using FIFO
-        let costBasisOfSoldShares = 0;
-        let buyingChargesTotal = 0;
-        let remainingToSell = sellQuantity;
-        let sharesForFifo = [];
-        
-        // Create FIFO tracking of all previous buy transactions
-        for (let i = 0; i < transactions.length; i++) {
-          const tx = transactions[i];
-          const txPrice = parseFloat(tx.price) || 0;
-          const txQuantity = parseFloat(tx.quantity) || 0;
-          const txExtraCharges = parseFloat(tx.extraCharges) || 0;
-          
-          // Only include buy transactions
-          if (txPrice > 0 && txQuantity > 0) {
-            sharesForFifo.push({
-              price: txPrice,
-              quantity: txQuantity,
-              remaining: txQuantity,
-              extraCharges: txExtraCharges,
-              extraChargesPerShare: txExtraCharges / txQuantity
-            });
-          }
-        }
-        
-        // Apply FIFO to calculate cost basis and include proportional buying charges
-        for (let j = 0; j < sharesForFifo.length && remainingToSell > 0; j++) {
-          const buyLot = sharesForFifo[j];
-          
-          if (buyLot.remaining > 0) {
-            const sharesToSellFromLot = Math.min(buyLot.remaining, remainingToSell);
-            
-            // Calculate cost basis of these shares
-            costBasisOfSoldShares += (buyLot.price * sharesToSellFromLot);
-            
-            // Add proportional buying charges for these shares
-            buyingChargesTotal += (buyLot.extraChargesPerShare * sharesToSellFromLot);
-            
-            // Reduce remaining shares in this lot
-            buyLot.remaining -= sharesToSellFromLot;
-            
-            // Reduce remaining shares to sell
-            remainingToSell -= sharesToSellFromLot;
-          }
-        }
-        
-        // Calculate extra charges for the sell transaction
-        const sellCharges = calculateExtraCharges(sellValue, quantity);
-        
+        const sellQuantityAbs = Math.abs(quantity);
+        const sellValue = price * sellQuantityAbs;
+
+        // Use the helper to get FIFO cost and charges
+        const { costBasisOfSoldShares, buyingChargesTotal } = getFifoCostAndCharges(transactions, sellQuantityAbs);
+
+        // Calculate extra charges for the sell transaction (use negative quantity for sell)
+        const sellCharges = calculateExtraCharges(sellValue, -sellQuantityAbs);
+
         // Calculate total charges (buying + selling)
         const totalCharges = buyingChargesTotal + sellCharges;
-        
+
         // Calculate profit/loss (includes both buying and selling charges)
         const profitLoss = sellValue - costBasisOfSoldShares - totalCharges;
-        
-        // Set the profit/loss info for displaying
+
         setProfitLossInfo({
           sellValue: sellValue.toFixed(2),
           originalCost: costBasisOfSoldShares.toFixed(2),
@@ -1246,10 +1299,9 @@ const saveAllData = () => {
           sellingCharges: sellCharges.toFixed(2),
           totalCharges: totalCharges.toFixed(2),
           profitLoss: profitLoss.toFixed(2),
-          quantity: sellQuantity
+          quantity: sellQuantityAbs
         });
-        
-        // Show the modal after state update
+
         setShowProfitLossModal(true);
       }
       
@@ -1338,125 +1390,123 @@ const saveAllData = () => {
   };
 
   // Then add a function to calculate the live profit (place this after other function definitions)
-  const calculateLiveProfit = () => {
-    // Only calculate if we have price and a company
-    if (!quickPrice || !companyName) {
-      setLiveProfit({ calculated: false });
-      return;
-    }
+// ... existing code ...
 
-    const price = parseFloat(quickPrice);
-    
-    // Skip invalid price
-    if (isNaN(price) || price <= 0) {
-      setLiveProfit({ calculated: false });
-      return;
-    }
-    
-    // Get quantity or use default 1 for calculation
-    let quantity = parseFloat(quickQuantity) || 1;
-    
-    // Apply sign based on transaction type
-    if (transactionType === 'sell' && quantity > 0) {
-      quantity = -quantity;
-    } else if (transactionType === 'buy' && quantity < 0) {
-      quantity = Math.abs(quantity);
-    }
-    
-    // Check if this is a sell transaction
-    const isSellTransaction = transactionType === 'sell';
-    
-    if (!isSellTransaction) {
-      // For buy transactions, just show the charges
-      const totalStockPrice = price * Math.abs(quantity);
-      const extraCharges = calculateExtraCharges(totalStockPrice, Math.abs(quantity));
-      
-      setLiveProfit({
-        calculated: true,
-        sellValue: 0,
-        originalCost: totalStockPrice,
-        buyingCharges: extraCharges,
-        sellingCharges: 0,
-        totalCharges: extraCharges,
-        profitLoss: 0,
-        quantity: Math.abs(quantity),
-        isBuy: true
-      });
-    } else {
-      // For sell transactions, calculate potential profit/loss
-      const sellQuantity = Math.abs(quantity);
-      const sellValue = price * sellQuantity;
-      
-      // Find the cost basis using FIFO
-      let costBasisOfSoldShares = 0;
-      let buyingChargesTotal = 0;
-      let remainingToSell = sellQuantity;
-      let sharesForFifo = [];
-      
-      // Create FIFO tracking of all previous buy transactions
-      for (let i = 0; i < transactions.length; i++) {
-        const tx = transactions[i];
-        const txPrice = parseFloat(tx.price) || 0;
-        const txQuantity = parseFloat(tx.quantity) || 0;
-        const txExtraCharges = parseFloat(tx.extraCharges) || 0;
-        
-        // Only include buy transactions
-        if (txPrice > 0 && txQuantity > 0) {
-          sharesForFifo.push({
-            price: txPrice,
-            quantity: txQuantity,
-            remaining: txQuantity,
-            extraCharges: txExtraCharges,
-            extraChargesPerShare: txExtraCharges / txQuantity
-          });
+const calculateLiveProfit = () => {
+  // Only calculate if we have price and a company
+  if (!quickPrice || !companyName) {
+    setLiveProfit({ calculated: false });
+    return;
+  }
+
+  const price = parseFloat(quickPrice);
+
+  // Skip invalid price
+  if (isNaN(price) || price <= 0) {
+    setLiveProfit({ calculated: false });
+    return;
+  }
+
+  // Get quantity or use default 1 for calculation
+  let quantity = parseFloat(quickQuantity) || 1;
+
+  // Apply sign based on transaction type
+  if (transactionType === 'sell' && quantity > 0) {
+    quantity = -quantity;
+  } else if (transactionType === 'buy' && quantity < 0) {
+    quantity = Math.abs(quantity);
+  }
+
+  // Check if this is a sell transaction
+  const isSellTransaction = transactionType === 'sell';
+
+  if (!isSellTransaction) {
+    // For buy transactions, just show the charges
+    const totalStockPrice = price * Math.abs(quantity);
+    const extraCharges = calculateExtraCharges(totalStockPrice, Math.abs(quantity));
+
+    setLiveProfit({
+      calculated: true,
+      sellValue: 0,
+      originalCost: totalStockPrice,
+      buyingCharges: extraCharges,
+      sellingCharges: 0,
+      totalCharges: extraCharges,
+      profitLoss: 0,
+      quantity: Math.abs(quantity),
+      isBuy: true
+    });
+  } else {
+    // For sell transactions, calculate potential profit/loss using true FIFO
+    const sellQuantity = Math.abs(quantity);
+    const sellValue = price * sellQuantity;
+
+    // 1. Build up FIFO buy lots, accounting for previous sells (do NOT include any in-progress sell)
+    let fifoBuyLots = [];
+    transactions.forEach((tx) => {
+      const txPrice = parseFloat(tx.price) || 0;
+      const txQuantity = parseFloat(tx.quantity) || 0;
+      const txExtraCharges = parseFloat(tx.extraCharges) || 0;
+      if (txPrice > 0 && txQuantity > 0) {
+        fifoBuyLots.push({
+          price: txPrice,
+          quantity: txQuantity,
+          remaining: txQuantity,
+          extraCharges: txExtraCharges,
+          extraChargesPerShare: txExtraCharges / txQuantity
+        });
+      } else if (txQuantity < 0) {
+        // For each sell, reduce from FIFO lots
+        let toSell = Math.abs(txQuantity);
+        for (let lot of fifoBuyLots) {
+          if (lot.remaining > 0 && toSell > 0) {
+            const used = Math.min(lot.remaining, toSell);
+            lot.remaining -= used;
+            toSell -= used;
+            if (toSell <= 0) break;
+          }
         }
       }
-      
-      // Apply FIFO to calculate cost basis and include proportional buying charges
-      for (let j = 0; j < sharesForFifo.length && remainingToSell > 0; j++) {
-        const buyLot = sharesForFifo[j];
-        
-        if (buyLot.remaining > 0) {
-          const sharesToSellFromLot = Math.min(buyLot.remaining, remainingToSell);
-          
-          // Calculate cost basis of these shares
-          costBasisOfSoldShares += (buyLot.price * sharesToSellFromLot);
-          
-          // Add proportional buying charges for these shares
-          buyingChargesTotal += (buyLot.extraChargesPerShare * sharesToSellFromLot);
-          
-          // Reduce remaining shares in this lot
-          buyLot.remaining -= sharesToSellFromLot;
-          
-          // Reduce remaining shares to sell
-          remainingToSell -= sharesToSellFromLot;
-        }
-      }
-      
-      // Calculate extra charges for the sell transaction
-      const sellCharges = calculateExtraCharges(sellValue, -sellQuantity);
-      
-      // Calculate total charges (buying + selling)
-      const totalCharges = buyingChargesTotal + sellCharges;
-      
-      // Calculate profit/loss (includes both buying and selling charges)
-      const profitLoss = sellValue - costBasisOfSoldShares - totalCharges;
-      
-      // Update live profit state
-      setLiveProfit({
-        calculated: true,
-        sellValue: sellValue,
-        originalCost: costBasisOfSoldShares,
-        buyingCharges: buyingChargesTotal,
-        sellingCharges: sellCharges,
-        totalCharges: totalCharges,
-        profitLoss: profitLoss,
-        quantity: sellQuantity,
-        isBuy: false
-      });
-    }
-  };
+    });
 
+    // 2. For the current live sell, use the remaining FIFO buy lots (do NOT mutate .remaining)
+    let remainingToSell = sellQuantity;
+    let costBasisOfSoldShares = 0;
+    let buyingChargesTotal = 0;
+    for (let lot of fifoBuyLots) {
+      if (lot.remaining > 0 && remainingToSell > 0) {
+        const sharesToSellFromLot = Math.min(lot.remaining, remainingToSell);
+        costBasisOfSoldShares += lot.price * sharesToSellFromLot;
+        buyingChargesTotal += lot.extraChargesPerShare * sharesToSellFromLot;
+        remainingToSell -= sharesToSellFromLot;
+      }
+      if (remainingToSell <= 0) break;
+    }
+
+    // Calculate extra charges for the sell transaction
+    const sellCharges = calculateExtraCharges(sellValue, -sellQuantity); // use negative for sell
+
+    // Calculate total charges (buying + selling)
+    const totalCharges = buyingChargesTotal + sellCharges;
+
+    // Calculate profit/loss (includes both buying and selling charges)
+    const profitLoss = sellValue - costBasisOfSoldShares - totalCharges;
+
+    setLiveProfit({
+      calculated: true,
+      sellValue: sellValue,
+      originalCost: costBasisOfSoldShares,
+      buyingCharges: buyingChargesTotal,
+      sellingCharges: sellCharges,
+      totalCharges: totalCharges,
+      profitLoss: profitLoss,
+      quantity: sellQuantity,
+      isBuy: false
+    });
+  }
+};
+
+// ... existing code ...
   // Update the useEffect to include transactionType in the dependencies
   useEffect(() => {
     calculateLiveProfit();
@@ -1704,6 +1754,257 @@ const saveAllData = () => {
     };
   };
 
+  // Add this handler function near your other handlers
+  const handleRefresh = () => {
+    updateTransactions();
+    setTimeout(() => {
+      saveAllData();
+    }, 100);
+  };
+
+  // Helper: Get FIFO buy transaction IDs for a sell transaction, considering previous sells
+  const getFifoBuyTransactionIds = (sellTxIndex) => {
+    const sellTx = transactions[sellTxIndex];
+    if (!sellTx || parseFloat(sellTx.quantity) >= 0) return [];
+
+    let sellQuantity = Math.abs(parseFloat(sellTx.quantity));
+    let fifoIds = [];
+    let remainingToSell = sellQuantity;
+
+    // Step 1: Build up the FIFO buy lots with remaining shares
+    let buyLots = [];
+    for (let i = 0; i < sellTxIndex; i++) {
+      const tx = transactions[i];
+      const price = parseFloat(tx.price) || 0;
+      const quantity = parseFloat(tx.quantity) || 0;
+      if (price > 0 && quantity > 0) {
+        // Buy transaction: add to FIFO pool
+        buyLots.push({ id: tx.id, remaining: quantity });
+      } else if (quantity < 0) {
+        // Sell transaction: reduce from FIFO pool
+        let toSell = Math.abs(quantity);
+        for (let lot of buyLots) {
+          if (lot.remaining > 0) {
+            const used = Math.min(lot.remaining, toSell);
+            lot.remaining -= used;
+            toSell -= used;
+            if (toSell <= 0) break;
+          }
+        }
+      }
+    }
+
+    // Step 2: For this sell, pick from FIFO buy lots with remaining shares
+    for (let lot of buyLots) {
+      if (lot.remaining > 0 && remainingToSell > 0) {
+        fifoIds.push(lot.id);
+        const used = Math.min(lot.remaining, remainingToSell);
+        remainingToSell -= used;
+      }
+      if (remainingToSell <= 0) break;
+    }
+
+    return fifoIds;
+  };
+
+  // Helper: Calculate realized P/L for selected sell transactions only
+  const calculateSellPL = () => {
+    // Get selected sell transactions, sorted by table order
+    const selectedSellTxs = transactions
+      .filter(tx => selectedTransactions.includes(tx.id) && parseFloat(tx.quantity) < 0)
+      .sort((a, b) => transactions.findIndex(t => t.id === a.id) - transactions.findIndex(t => t.id === b.id));
+
+    if (selectedSellTxs.length === 0) return 0;
+
+    // Build FIFO buy lots for all transactions up to each sell
+    let fifoBuyLots = [];
+    let totalSellPL = 0;
+
+    transactions.forEach((tx, idx) => {
+      const price = parseFloat(tx.price) || 0;
+      const quantity = parseFloat(tx.quantity) || 0;
+      const extraCharges = parseFloat(tx.extraCharges) || 0;
+
+      if (price > 0 && quantity > 0) {
+        fifoBuyLots.push({
+          id: tx.id,
+          price,
+          quantity,
+          remaining: quantity,
+          extraCharges,
+          extraChargesPerShare: extraCharges / quantity
+        });
+      }
+
+      // If this is a selected sell, calculate its realized P/L
+      if (selectedSellTxs.some(sellTx => sellTx.id === tx.id) && quantity < 0) {
+        let sellQuantity = Math.abs(quantity);
+        let remainingToSell = sellQuantity;
+        let costBasis = 0;
+        let buyCharges = 0;
+
+        // FIFO: Use up buy lots
+        for (let lot of fifoBuyLots) {
+          if (lot.remaining > 0 && remainingToSell > 0) {
+            const used = Math.min(lot.remaining, remainingToSell);
+            costBasis += lot.price * used;
+            buyCharges += lot.extraChargesPerShare * used;
+            lot.remaining -= used;
+            remainingToSell -= used;
+          }
+          if (remainingToSell <= 0) break;
+        }
+
+        const sellValue = price * sellQuantity;
+        const sellCharges = extraCharges;
+        const totalCharges = buyCharges + sellCharges;
+        const profitLoss = sellValue - costBasis - totalCharges;
+
+        totalSellPL += profitLoss;
+      }
+
+      // For sells, reduce from FIFO buy lots
+      if (quantity < 0) {
+        let toSell = Math.abs(quantity);
+        for (let lot of fifoBuyLots) {
+          if (lot.remaining > 0) {
+            const used = Math.min(lot.remaining, toSell);
+            lot.remaining -= used;
+            toSell -= used;
+            if (toSell <= 0) break;
+          }
+        }
+      }
+    });
+
+    return totalSellPL;
+  };
+
+  // Helper to calculate FIFO cost basis and proportional buy charges for a sell
+  const getFifoCostAndCharges = (transactions, sellQuantity) => {
+    // Build up FIFO buy lots, accounting for previous sells
+    let fifoBuyLots = [];
+    transactions.forEach((tx) => {
+      const txPrice = parseFloat(tx.price) || 0;
+      const txQuantity = parseFloat(tx.quantity) || 0;
+      const txExtraCharges = parseFloat(tx.extraCharges) || 0;
+      if (txPrice > 0 && txQuantity > 0) {
+        fifoBuyLots.push({
+          price: txPrice,
+          quantity: txQuantity,
+          remaining: txQuantity,
+          extraCharges: txExtraCharges,
+          extraChargesPerShare: txExtraCharges / txQuantity
+        });
+      } else if (txQuantity < 0) {
+        // For each sell, reduce from FIFO lots
+        let toSell = Math.abs(txQuantity);
+        for (let lot of fifoBuyLots) {
+          if (lot.remaining > 0 && toSell > 0) {
+            const used = Math.min(lot.remaining, toSell);
+            lot.remaining -= used;
+            toSell -= used;
+            if (toSell <= 0) break;
+          }
+        }
+      }
+    });
+
+    // For the new sell, use the remaining FIFO buy lots (do NOT mutate .remaining)
+    let remainingToSell = sellQuantity;
+    let costBasisOfSoldShares = 0;
+    let buyingChargesTotal = 0;
+    for (let lot of fifoBuyLots) {
+      if (lot.remaining > 0 && remainingToSell > 0) {
+        const sharesToSellFromLot = Math.min(lot.remaining, remainingToSell);
+        costBasisOfSoldShares += lot.price * sharesToSellFromLot;
+        buyingChargesTotal += lot.extraChargesPerShare * sharesToSellFromLot;
+        remainingToSell -= sharesToSellFromLot;
+      }
+      if (remainingToSell <= 0) break;
+    }
+    return { costBasisOfSoldShares, buyingChargesTotal };
+  };
+
+  // Returns an array of { id, profitLoss, sellValue, costBasis, buyCharges, sellCharges, totalCharges }
+  const calculateIndividualSellPLs = () => {
+    // Get selected sell transactions, sorted by table order
+    const selectedSellTxs = transactions
+      .filter(tx => selectedTransactions.includes(tx.id) && parseFloat(tx.quantity) < 0)
+      .sort((a, b) => transactions.findIndex(t => t.id === a.id) - transactions.findIndex(t => t.id === b.id));
+
+    if (selectedSellTxs.length === 0) return [];
+
+    let results = [];
+
+    selectedSellTxs.forEach(sellTx => {
+      // Find the index of this sell in the transaction list
+      const sellIdx = transactions.findIndex(t => t.id === sellTx.id);
+
+      // Build FIFO buy lots up to but NOT including this sell
+      let fifoBuyLots = [];
+      for (let i = 0; i < sellIdx; i++) {
+        const tx = transactions[i];
+        const price = parseFloat(tx.price) || 0;
+        const quantity = parseFloat(tx.quantity) || 0;
+        if (price > 0 && quantity > 0) {
+          // Always recalculate buy extra charges
+          const buyExtraCharges = calculateExtraCharges(price * quantity, quantity);
+          fifoBuyLots.push({
+            price,
+            quantity,
+            remaining: quantity,
+            extraCharges: buyExtraCharges,
+            extraChargesPerShare: buyExtraCharges / quantity
+          });
+        } else if (quantity < 0) {
+          // For each sell, reduce from FIFO lots
+          let toSell = Math.abs(quantity);
+          for (let lot of fifoBuyLots) {
+            if (lot.remaining > 0 && toSell > 0) {
+              const used = Math.min(lot.remaining, toSell);
+              lot.remaining -= used;
+              toSell -= used;
+              if (toSell <= 0) break;
+            }
+          }
+        }
+      }
+
+      // Now, for this sell, calculate P/L using the FIFO lots as of this point
+      const sellQuantity = Math.abs(parseFloat(sellTx.quantity) || 0);
+      let remainingToSell = sellQuantity;
+      let costBasis = 0;
+      let buyCharges = 0;
+      for (let lot of fifoBuyLots) {
+        if (lot.remaining > 0 && remainingToSell > 0) {
+          const used = Math.min(lot.remaining, remainingToSell);
+          costBasis += lot.price * used;
+          buyCharges += lot.extraChargesPerShare * used;
+          remainingToSell -= used;
+        }
+        if (remainingToSell <= 0) break;
+      }
+
+      const sellValue = (parseFloat(sellTx.price) || 0) * sellQuantity;
+      const sellCharges = calculateExtraCharges(sellValue, -sellQuantity);
+      const totalCharges = buyCharges + sellCharges;
+      const profitLoss = sellValue - costBasis - totalCharges;
+
+      results.push({
+        id: sellTx.id,
+        profitLoss,
+        sellValue,
+        costBasis,
+        buyCharges,
+        sellCharges,
+        totalCharges
+      });
+    });
+
+    return results;
+  };
+
   return (
     <div className="stock-analysis-container">
       {/* <p>dont knwo why grow have placed female dp charges on a male acc</p>
@@ -1747,7 +2048,7 @@ const saveAllData = () => {
                   <span>{selectedTransactions.length}</span>
                 </div>
                 <div className="result-item">
-                  <span>Total Shares:</span>
+                  <span>selected Total Shares left:</span>
                   <span>{calculateSelectedSum().totalShares.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 
@@ -1801,12 +2102,37 @@ const saveAllData = () => {
                   <span>₹{calculateTotalWithRoundedSTT().totalExtraCharges.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                 </div>
                 <div className="result-item total">
-                  <span>Total Investment:</span>
                   <span>
-                    {calculateSelectedSum().totalInvestment >= 0 
-                      ? `+₹${calculateSelectedSum().totalInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}` 
-                      : `-₹${Math.abs(calculateSelectedSum().totalInvestment).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}
+                    {showSellPL ? "Profit/Loss of Sell:" : "Total profit/loss:"}
                   </span>
+                  <span>
+                    {showSellPL && calculateIndividualSellPLs().length > 1 ? (
+                      // Show each sell's P/L side by side
+                      calculateIndividualSellPLs().map((pl, idx) => (
+                        <span key={pl.id} style={{ marginRight: 12 }}>
+                          Tx#{pl.id}: {pl.profitLoss >= 0 ? '+' : '-'}₹
+                          {Math.abs(pl.profitLoss).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </span>
+                      ))
+                    ) : showSellPL ? (
+                      // Fallback: show total sell P/L if only one sell or not multiple
+                      calculateSellPL() >= 0
+                        ? `+₹${calculateSellPL().toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : `-₹${Math.abs(calculateSellPL()).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    ) : (
+                      calculateSelectedSum().totalInvestment >= 0
+                        ? `+₹${calculateSelectedSum().totalInvestment.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                        : `-₹${Math.abs(calculateSelectedSum().totalInvestment).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                    )}
+                  </span>
+                  <button
+                    className="swap-pl-button"
+                    style={{ marginLeft: '10px', fontSize: '0.9em', padding: '2px 8px' }}
+                    onClick={() => setShowSellPL(pl => !pl)}
+                    title="Swap between total and sell-only profit/loss"
+                  >
+                    Swap
+                  </button>
                 </div>
                 {hasSellTransactionsSelected() && (
                   <div className="calculator-warning">
@@ -2193,6 +2519,14 @@ const saveAllData = () => {
           
           {/* Remove the original live profit display that was below the inputs */}
         </div>
+        <button 
+          className="refresh-button"
+          onClick={handleRefresh}
+          title="Recalculate and Save All Data"
+          style={{ marginLeft: '10px', background: '#4caf50', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
+        >
+          Refresh ♻️
+        </button>
       </div>
 
       <table className="investment-table">
