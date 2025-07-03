@@ -1,0 +1,27 @@
+good job now everything related selected transaction is over, now there is another problem, 
+on dynamic price and quantity inputs, live profit and loss calculation is done and displayed next ot save transactions button, now the problem is that value calculated is wrong
+
+things to fix
+->for selling 1 of 100, 
+    1]buy charges of 100 instead of 1 is applied
+    2]shows loss as only 1 sold, dosent shows profit/loss from that sell
+
+->modal ,when sell transaction is saved, dosent displays imp info
+->display profit by selected sell when there are previous sell 
+->presence of other sell transactions before the selected sell transaction,
+    if that sell didnt completely sold out the shares of buy transaction, 
+    then the next sell transaction should also consider that partial buy transaction, 
+    
+->seems like no purpose in displaying extra charges when
+    more than 1 transaction selected
+->compressed state making transaction not vissible for sold out companies in wallet tracker
+->no point in keeping investor gender 
+
+
+
+CORRECTED
+->wrong live profit and loss value near the save transaction
+->display profit by selected sell when there are previous sell 
+->not able to upload json from mobile
+->added deposit/withdraw transactions to the json and changes to wallet
+
