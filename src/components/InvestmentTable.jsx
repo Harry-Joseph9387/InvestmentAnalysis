@@ -2386,7 +2386,6 @@ const calculateLiveProfit = () => {
       <input
         type="file"
         id="import-companies-input"
-        accept="application/json,.json"
         style={{ display: 'none' }}
         onChange={importCompaniesFromFile}
       />
