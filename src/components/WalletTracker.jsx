@@ -1,17 +1,59 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect,useRef } from 'react';
 import './WalletTracker.css';
 import { useMoney } from '../context/MoneyContext';
 
+import './WalletTracker.css';
+import ChartDataLabels from 'chartjs-plugin-datalabels';
+// Add these new imports for Chart.js
+import { Chart as ChartJS, ArcElement, Tooltip, Legend } from 'chart.js';
+
+// Add these new imports for Chart.js
+import { Pie, Bar,getElementAtEvent } from 'react-chartjs-2'; // <-- Import Bar
+import {
+  CategoryScale, // <-- Add this
+  LinearScale,   // <-- Add this
+  BarElement,      // <-- Add this
+  Title            // <-- Add this (optional but good)
+} from 'chart.js';
+
+// Register all the components Chart.js needs
+ChartJS.register(
+  CategoryScale,
+  LinearScale,
+  BarElement,
+  Title,
+  ChartDataLabels
+);
+
+// Register the components Chart.js needs for a Pie chart
+ChartJS.register(ArcElement, Tooltip, Legend);
+
+
+
 const WalletTracker = () => {
   // State for companies and their data from localStorage
+  
+  // State to track which chart is visible
+  const [chartView, setChartView] = useState('active');
   const [companiesData, setCompaniesData] = useState([]);
   const [companyNames, setCompanyNames] = useState([]);
-  
+  const portfolioChartRef = useRef(null);
   // Wallet transactions state (separate from investment transactions)
   const [walletTransactions, setWalletTransactions] = useState([]);
-  
+  // --- ADD THESE THREE LINES ---
+  const [showOtherModal, setShowOtherModal] = useState(false);
+  const [otherModalData, setOtherModalData] = useState([]); // Data for the modal
+  const [otherCompaniesList, setOtherCompaniesList] = useState([]); // Raw data
   // State for adding money to wallet - replace separate deposit and withdraw states with a single amount state
   const [walletAmount, setWalletAmount] = useState('');
+
+  // --- ADD THESE FOR THE CLOSED CHART MODAL ---
+  const [showClosedOtherModal, setShowClosedOtherModal] = useState(false);
+  const [closedOtherModalData, setClosedOtherModalData] = useState([]);
+  const [closedOtherCompaniesList, setClosedOtherCompaniesList] = useState([]);
+
+  // --- ADD A REF FOR THE BAR CHART ---
+  const closedChartRef = useRef(null);
 
   // Save status message
   const [saveStatus, setSaveStatus] = useState('');
@@ -43,9 +85,179 @@ const WalletTracker = () => {
   // Add this new state variable for the utility panel
   const [showUtilityPanel, setShowUtilityPanel] = useState(false);
 
+  // State for our new charts
+  const [portfolioPieData, setPortfolioPieData] = useState(null);
+  const [closedBarData, setClosedBarData] = useState(null); // <-- Renamed
   // Add this to get context access
   const { setExtraMoneyCaused } = useMoney();
 
+  // Process company data to create wallet transactions
+  const processCompanyData = (parsedCompanies) => {
+    try {
+      const historyCompany = parsedCompanies.find(c => c.name === "_TransactionHistory");
+      if (!historyCompany || !historyCompany.transactions) {
+        console.log("No transaction history found.");
+        setWalletTransactions([]);
+        return;
+      }
+
+      const transactions = historyCompany.transactions;
+      let newWalletTransactions = [];
+      let currentAmount = 0;
+      let extraMoney = 0;
+      let companyInvestments = {}; // Tracks value in each company
+
+      // Initialize company investments
+      companyNames.forEach(name => {
+        companyInvestments[name] = 0;
+      });
+
+      transactions.forEach((tx, index) => {
+        let isNote = false;
+        let noteText = '';
+        let rowAmount = currentAmount;
+        let rowExtraMoney = extraMoney;
+        let rowCompanyInvestments = { ...companyInvestments };
+
+        if (tx.type === 'deposit') {
+          currentAmount += parseFloat(tx.amount);
+          rowAmount = currentAmount;
+          isNote = true;
+          noteText = `Deposited ₹${parseFloat(tx.amount).toFixed(2)}`;
+        } else if (tx.type === 'withdraw') {
+          currentAmount -= parseFloat(tx.amount);
+          rowAmount = currentAmount;
+          isNote = true;
+          noteText = `Withdrew ₹${parseFloat(tx.amount).toFixed(2)}`;
+        } else if (tx.transactionType === 'buy') {
+          const cost = parseFloat(tx.quantity) * parseFloat(tx.price);
+          currentAmount -= cost;
+          companyInvestments[tx.companyName] = (companyInvestments[tx.companyName] || 0) + cost;
+          rowAmount = currentAmount;
+          rowCompanyInvestments = { ...companyInvestments };
+          isNote = true;
+          noteText = `Bought ${tx.quantity} ${tx.companyName} @ ₹${parseFloat(tx.price).toFixed(2)}`;
+        } else if (tx.transactionType === 'sell') {
+          const revenue = parseFloat(tx.quantity) * parseFloat(tx.price);
+          const costOfSoldShares = tx.averageBuyPrice ? parseFloat(tx.quantity) * parseFloat(tx.averageBuyPrice) : 0;
+          const profitLoss = revenue - costOfSoldShares;
+
+          currentAmount += revenue;
+          extraMoney += profitLoss;
+          companyInvestments[tx.companyName] = (companyInvestments[tx.companyName] || 0) - costOfSoldShares;
+          
+          rowAmount = currentAmount;
+          rowExtraMoney = extraMoney;
+          rowCompanyInvestments = { ...companyInvestments };
+          isNote = true;
+          noteText = `Sold ${tx.quantity} ${tx.companyName} @ ₹${parseFloat(tx.price).toFixed(2)} (P/L: ₹${profitLoss.toFixed(2)})`;
+        }
+
+        newWalletTransactions.push({
+          id: index,
+          date: tx.date,
+          amountInWallet: rowAmount,
+          extraMoneyCaused: rowExtraMoney,
+          companyInvestments: rowCompanyInvestments,
+          isNote: isNote,
+          note: noteText,
+          transaction: tx // Store the original transaction
+        });
+      });
+
+      // Set the final processed transactions
+      setWalletTransactions(newWalletTransactions.reverse()); // Show newest first
+    } catch (error) {
+      console.error("Error processing company data:", error);
+    }
+  };
+  // Add this to get context access
+// ... inside your component, before the useEffect that uses investedCompanies ...
+
+  // Derive the list of invested companies from companiesData
+  const investedCompanies = companiesData.filter(
+    company => company.name !== "_TransactionHistory" && company.quantity > 0
+  );
+
+  const handleAddMoneyToWallet = (amountStr) => {
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount) || amount <= 0) {
+      setSaveStatus('Please enter a valid amount');
+      setTimeout(() => setSaveStatus(''), 3000);
+      return;
+    }
+
+    try {
+      const savedCompanies = JSON.parse(localStorage.getItem('companies') || '[]');
+      let historyCompany = savedCompanies.find(c => c.name === "_TransactionHistory");
+
+      if (!historyCompany) {
+        historyCompany = { name: "_TransactionHistory", transactions: [] };
+        savedCompanies.push(historyCompany);
+      }
+
+      const newTransaction = {
+        type: 'deposit',
+        amount: amount,
+        date: new Date().toISOString()
+      };
+
+      historyCompany.transactions.push(newTransaction);
+      localStorage.setItem('companies', JSON.stringify(savedCompanies));
+      refreshData(); // Refresh to show the change
+    } catch (error) {
+      console.error("Error adding money:", error);
+      setSaveStatus('Error saving deposit');
+      setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+
+  const handleWithdrawMoneyFromWallet = (amountStr) => {
+    const amount = parseFloat(amountStr);
+    if (isNaN(amount) || amount <= 0) {
+      setSaveStatus('Please enter a valid amount');
+      setTimeout(() => setSaveStatus(''), 3000);
+      return;
+    }
+
+    try {
+      const savedCompanies = JSON.parse(localStorage.getItem('companies') || '[]');
+      let historyCompany = savedCompanies.find(c => c.name === "_TransactionHistory");
+
+      if (!historyCompany) {
+        historyCompany = { name: "_TransactionHistory", transactions: [] };
+        savedCompanies.push(historyCompany);
+      }
+
+      const newTransaction = {
+        type: 'withdraw',
+        amount: amount,
+        date: new Date().toISOString()
+      };
+
+      historyCompany.transactions.push(newTransaction);
+      localStorage.setItem('companies', JSON.stringify(savedCompanies));
+      refreshData(); // Refresh to show the change
+    } catch (error) {
+      console.error("Error withdrawing money:", error);
+      setSaveStatus('Error saving withdrawal');
+      setTimeout(() => setSaveStatus(''), 3000);
+    }
+  };
+  // Add a separate useEffect to update visible companies...
+  useEffect(() => {
+    // ... (rest of the useEffect) ...
+    // Get current companies data
+    const threshold = windowWidth < 768 ? 2 : 
+                      windowWidth < 992 ? 3 : 
+                      windowWidth < 1200 ? 4 : 5;
+    
+    if (investedCompanies.length <= threshold) {
+      // ...
+    } else {
+      // ...
+    }
+  }, [walletTransactions, companyNames, windowWidth, companiesData]); // <-- Add companiesData here
   // Load companies data from localStorage when component mounts
   useEffect(() => {
     const loadCompaniesFromStorage = () => {
@@ -116,7 +328,6 @@ const WalletTracker = () => {
   // Add a separate useEffect to update visible companies when transactions or window width changes
   useEffect(() => {
     // Get current companies data
-    const { investedCompanies } = getTableColumns();
     const threshold = windowWidth < 768 ? 2 : 
                       windowWidth < 992 ? 3 : 
                       windowWidth < 1200 ? 4 : 5;
@@ -132,396 +343,243 @@ const WalletTracker = () => {
     }
   }, [walletTransactions, companyNames, windowWidth]); // Dependencies that should trigger updates
 
+  
   // Process company data to create wallet transactions
-  const processCompanyData = (companies) => {
-    try {
-      // Find the transaction history record
-      const transactionHistory = companies.find(c => c.name === "_TransactionHistory");
-      
-      // If there's no transaction history, we can't proceed correctly
-      if (!transactionHistory || !Array.isArray(transactionHistory.transactions) || transactionHistory.transactions.length === 0) {
-        console.log("No transaction history found, using fallback method");
-        return;
-      }
-      
-      console.log("Processing transaction history with", transactionHistory.transactions.length, "transactions");
-      
-      // Initialize wallet amount and investments
-      let currentWalletAmount = 0;
-      const initialInvestments = {};
-      companies.forEach(company => {
-        if (company.name !== "_TransactionHistory") {
-          initialInvestments[company.name] = '0';
-        }
-      });
-      
-      // FIFO tracking for each company
-      const fifoSharesByCompany = {};
-      companyNames.forEach(name => {
-        fifoSharesByCompany[name] = [];
-      });
-      
-      // Sort the transaction history by globalIndex
-      const sortedTransactions = [...transactionHistory.transactions].sort((a, b) => a.globalIndex - b.globalIndex);
-      
-      // Create wallet rows in the same order as the transaction history
-      let walletRows = [];
-      let rowId = 1;
-      let currentInvestments = {...initialInvestments};
-      let extraMoneyCaused = 0;
-      
-      // Variables to track combined buy transactions
-      let pendingBuyTransactions = [];
-      let allBuyTransactions = {}; // Store all buy transactions by row ID
-      
-      // Process each transaction in the global order
-      for (let i = 0; i < sortedTransactions.length; i++) {
-        const historyRecord = sortedTransactions[i];
-        const { companyName, transactionNumber, type, amount, transactionType, quantity: recordedQuantity } = historyRecord;
-        
-        // Handle wallet deposits and withdrawals
-        if (companyName === "Wallet") {
-          // If there are pending buy transactions, add them as a combined row first
-          if (pendingBuyTransactions.length > 0) {
-            const combinedRow = createCombinedBuyRow(pendingBuyTransactions, rowId, currentWalletAmount, currentInvestments, extraMoneyCaused);
-            walletRows.push(combinedRow);
-            
-            // Store individual buy transactions for this row
-            allBuyTransactions[rowId] = [...pendingBuyTransactions];
-            rowId++;
-            pendingBuyTransactions = [];
-          }
-          
-          const transactionAmount = parseFloat(amount) || 0;
-          
-          if (type === "deposit" && transactionAmount > 0) {
-            // Create note row for the deposit
-            const noteRow = {
-              id: `note-${rowId}`,
-              note: `Added ₹${transactionAmount.toFixed(3)} to wallet`,
-              isNote: true
-            };
-            
-            // Update wallet amount
-            currentWalletAmount += transactionAmount;
-            
-            // Create transaction row
-            const depositRow = {
-              id: rowId++,
-              walletAmount: currentWalletAmount.toFixed(3),
-              investments: {...currentInvestments},
-              extraMoneyCaused: extraMoneyCaused.toFixed(3),
-              isNote: false
-            };
-            
-            // Add rows
-            walletRows.push(noteRow, depositRow);
-          } else if (type === "withdraw" && transactionAmount > 0) {
-            // Create note row for the withdrawal
-            const noteRow = {
-              id: `note-${rowId}`,
-              note: `Withdrew ₹${transactionAmount.toFixed(3)} from wallet`,
-              isNote: true
-            };
-            
-            // Update wallet amount
-            currentWalletAmount -= transactionAmount;
-            
-            // Create transaction row
-            const withdrawRow = {
-              id: rowId++,
-              walletAmount: currentWalletAmount.toFixed(3),
-              investments: {...currentInvestments},
-              extraMoneyCaused: extraMoneyCaused.toFixed(3),
-              isNote: false
-            };
-            
-            // Add rows
-            walletRows.push(noteRow, withdrawRow);
-          }
-          continue;
-        }
-        
-        // Handle buy/sell transactions
-        const company = companies.find(c => c.name === companyName);
-        if (!company || !Array.isArray(company.transactions)) {
-          console.log(`Company ${companyName} not found or has no transactions`);
-          continue;
-        }
-        
-        // Find the specific transaction using the transaction number
-        const tx = company.transactions.find(t => t.id === transactionNumber);
-        if (!tx) {
-          console.log(`Transaction #${transactionNumber} for ${companyName} not found`);
-          continue;
-        }
-        
-        const price = parseFloat(tx.price) || 0;
-        const quantity = parseFloat(tx.quantity) || 0;
-        
-        if (price === 0 || quantity === 0) {
-          console.log(`Skipping ${companyName} transaction with invalid price/quantity`);
-          continue;
-        }
-        
-        // Determine if this is a buy or sell transaction
-        const isSellTransaction = transactionType === 'sell' || 
-                                 (recordedQuantity && parseFloat(recordedQuantity) < 0) || 
-                                 quantity < 0;
-        
-        // Check if the next transaction is a non-buy transaction
-        const isLastTransaction = i === sortedTransactions.length - 1;
-        const nextTransaction = !isLastTransaction ? sortedTransactions[i + 1] : null;
-        const isNextNonBuy = nextTransaction && (
-          nextTransaction.companyName === "Wallet" || 
-          nextTransaction.transactionType === 'sell' || 
-          (nextTransaction.quantity && parseFloat(nextTransaction.quantity) < 0)
-        );
-        
-        if (!isSellTransaction) {
-          // Buy transaction
-          const charges = parseFloat(tx.extraCharges) || 0;
-          
-          // Add to FIFO tracking
-          if (!fifoSharesByCompany[companyName]) {
-            fifoSharesByCompany[companyName] = [];
-          }
-          
-          fifoSharesByCompany[companyName].push({
-            price: price,
-            quantity: quantity,
-            remaining: quantity,
-            transactionId: transactionNumber
-          });
-          
-          // Update investments and wallet
-          const totalCost = (price * quantity) + charges;
-          currentWalletAmount -= totalCost;
-          currentInvestments[companyName] = (parseFloat(currentInvestments[companyName] || 0) + totalCost).toFixed(3);
-          
-          // Create a buy transaction object with all details
-          const buyTransaction = {
-            transactionId: transactionNumber,
-            companyName,
-            price,
-            quantity,
-            charges,
-            totalCost,
-            walletAmount: currentWalletAmount.toFixed(3),
-            investments: {...currentInvestments},
-            note: `Bought ${quantity} shares of ${companyName} for ₹${(price * quantity).toFixed(3)} (Price: ₹${price.toFixed(3)}/share, Charges: ₹${charges.toFixed(3)})`
-          };
-          
-          // Add to pending buy transactions
-          pendingBuyTransactions.push(buyTransaction);
-          
-          // If this is the last transaction or next is non-buy, create a combined row
-          if (isLastTransaction || isNextNonBuy) {
-            const combinedRow = createCombinedBuyRow(pendingBuyTransactions, rowId, currentWalletAmount, currentInvestments, extraMoneyCaused);
-            walletRows.push(combinedRow);
-            
-            // Store individual buy transactions for this row
-            allBuyTransactions[rowId] = [...pendingBuyTransactions];
-            rowId++;
-            pendingBuyTransactions = [];
-          }
-        } else {
-          // Sell transaction
-          console.log(`Processing SELL transaction for ${companyName}`);
-          
-          // First, add any pending buy transactions as a combined row
-          if (pendingBuyTransactions.length > 0) {
-            const combinedRow = createCombinedBuyRow(pendingBuyTransactions, rowId, currentWalletAmount, currentInvestments, extraMoneyCaused);
-            walletRows.push(combinedRow);
-            
-            // Store individual buy transactions for this row
-            allBuyTransactions[rowId] = [...pendingBuyTransactions];
-            rowId++;
-            pendingBuyTransactions = [];
-          }
-          
-          const sellQuantity = Math.abs(quantity);
-          const sellPrice = price;
-          const sellValue = sellPrice * sellQuantity;
-          
-          // Calculate profit/loss using FIFO
-          let costBasisOfSoldShares = 0;
-          let remainingToSell = sellQuantity;
-          let usedLots = []; // Track which lots we used for this sell transaction
-          
-          const fifoShares = fifoSharesByCompany[companyName] || [];
-          for (let i = 0; i < fifoShares.length && remainingToSell > 0; i++) {
-            const lot = fifoShares[i];
-            if (lot.remaining > 0) {
-              const sharesToSellFromLot = Math.min(lot.remaining, remainingToSell);
-              costBasisOfSoldShares += (lot.price * sharesToSellFromLot);
-              
-              // Track this lot and how many shares we sold from it
-              usedLots.push({
-                index: i,
-                sharesSold: sharesToSellFromLot,
-                originalShares: lot.quantity,
-                transactionId: lot.transactionId // Store the transaction ID
-              });
-              
-              lot.remaining -= sharesToSellFromLot;
-              remainingToSell -= sharesToSellFromLot;
-            }
-          }
-          
-          // Get buy transaction charges for the specific lots used
-          let totalBuyCharges = 0;
-          if (company.transactions.length > 0 && usedLots.length > 0) {
-            // For each lot that was used in this sell
-            for (const lot of usedLots) {
-              // Find the corresponding buy transaction by ID
-              const buyTx = company.transactions.find(t => t.id === lot.transactionId);
-              
-              if (buyTx) {
-                // Calculate proportion of this buy transaction's charges to include
-                const proportion = lot.sharesSold / lot.originalShares;
-                const txCharges = parseFloat(buyTx.extraCharges) || 0;
-                totalBuyCharges += txCharges * proportion;
-              }
-            }
-          }
-          
-          // Get ONLY the sell transaction's extra charges
-          const sellExtraCharges = parseFloat(tx.extraCharges) || 0;
-          
-          // Calculate profit/loss with correct precision - using cost basis + all charges
-          // Using original purchase price of sold shares + all buy charges + sell transaction charges
-          const profitLoss = sellValue - costBasisOfSoldShares - totalBuyCharges - sellExtraCharges;
-          extraMoneyCaused += profitLoss;
-          
-          // Create note text
-          const isProfitable = profitLoss >= 0;
-          const profitLossText = isProfitable ? 
-            `Profit: ₹${profitLoss.toFixed(3)}` : 
-            `Loss: ₹${Math.abs(profitLoss).toFixed(3)}`;
-          
-          // MODIFIED: Subtract ONLY sell transaction charges from sell value
-          const netSellProceeds = sellValue - sellExtraCharges;
-          
-          // Updated note row to include cost basis and all charges
-          const noteRow = {
-            id: `note-${rowId}`,
-            note: `Sold ${sellQuantity} shares of ${companyName} for ₹${sellValue.toFixed(3)} (original cost: ₹${costBasisOfSoldShares.toFixed(3)}, FIFO buy charges: ₹${totalBuyCharges.toFixed(3)}, sell charges: ₹${sellExtraCharges.toFixed(3)}) - ${profitLossText}`,
-            isNote: true
-          };
-          
-          // Update wallet amount by subtracting ONLY the sell transaction charges
-          currentWalletAmount += netSellProceeds;
-          
-          // Check if all shares are sold (no remaining shares in any lot)
-          const allSharesSold = fifoShares.every(lot => lot.remaining === 0);
-          
-          // Update investments based on whether all shares were sold or not
-          if (allSharesSold) {
-            // If all shares are sold, set investment to 0
-            currentInvestments[companyName] = '0.000';
-          } else if (company.transactions.length > 0) {
-            // If some shares remain, use the remaining investment value
-            const sortedCompanyTxs = [...company.transactions].sort((a, b) => a.id - b.id);
-            const lastTx = sortedCompanyTxs[sortedCompanyTxs.length - 1];
-            
-            if (lastTx.totalInvestment !== undefined) {
-              currentInvestments[companyName] = lastTx.totalInvestment.toFixed(3);
-            }
-          }
-          
-          // Create transaction row
-          const sellRow = {
-            id: rowId++,
-            walletAmount: currentWalletAmount.toFixed(3),
-            investments: {...currentInvestments},
-            extraMoneyCaused: extraMoneyCaused.toFixed(3),
-            isNote: false,
-            transactionType: 'sell',
-            companyName: companyName,
-            quantity: sellQuantity,
-            price: sellPrice,
-            charges: sellExtraCharges,
-            profitLoss: profitLoss
-          };
-          
-          // Add rows
-          walletRows.push(noteRow, sellRow);
-        }
-      }
-      
-      // Add any remaining pending buy transactions
-      if (pendingBuyTransactions.length > 0) {
-        const combinedRow = createCombinedBuyRow(pendingBuyTransactions, rowId, currentWalletAmount, currentInvestments, extraMoneyCaused);
-        walletRows.push(combinedRow);
-        
-        // Store individual buy transactions for this row
-        allBuyTransactions[rowId] = [...pendingBuyTransactions];
-      }
-      
-      // If no transactions were processed, add a default row
-      if (walletRows.length === 0) {
-        walletRows.push({
-          id: 1,
-          walletAmount: '0.000',
-          investments: initialInvestments,
-          extraMoneyCaused: '0.000',
-          isNote: false
-        });
-      }
-      
-      console.log(`Created ${walletRows.length} wallet rows from ${sortedTransactions.length} transactions`);
-      
-      // Set all state at once to avoid intermediate renders
-      setWalletTransactions(walletRows);
-      setIndividualBuyTransactions(allBuyTransactions);
-      
-    } catch (error) {
-      console.error("Error processing company data:", error);
-    }
-  };
+  
+  // ... after your other useEffect hooks ...
+/**
+   * Calculates the total profit or loss for a single company by
+   * iterating all of its transactions.
+   * This function assumes the data structure from your Python script.
+   */
+/**
+   * Calculates the total profit or loss for a single company by
+   * iterating all of its transactions.
+   */
+const calculateCompanyPL = (company) => {
+  if (!company || !company.transactions || company.transactions.length === 0) {
+    return 0;
+  }
 
-  // Helper function to create a combined buy row
-  const createCombinedBuyRow = (buyTransactions, rowId, walletAmount, investments, extraMoneyCaused) => {
-    // Count total shares and cost by company
-    const companySummary = {};
-    
-    buyTransactions.forEach(tx => {
-      if (!companySummary[tx.companyName]) {
-        companySummary[tx.companyName] = {
-          totalShares: 0,
-          totalCost: 0
-        };
+  let totalRevenue = 0; // Total money from selling shares
+  let totalCost = 0;    // Total money spent buying shares
+
+  company.transactions.forEach(tx => {
+    const quantity = parseFloat(tx.quantity);
+    const unitPrice = parseFloat(tx.price);
+    const extraCharges = parseFloat(tx.extraCharges || 0);
+
+    if (isNaN(quantity) || isNaN(unitPrice)) {
+      return; 
+    }
+
+    if (quantity > 0) {
+      // This is a BUY transaction
+      totalCost += (quantity * unitPrice) + extraCharges;
+    } else if (quantity < 0) {
+      // This is a SELL transaction
+      totalRevenue += (Math.abs(quantity) * unitPrice) - extraCharges;
+    }
+  });
+  
+  return totalRevenue - totalCost;
+};
+
+
+// Add this new useEffect to process data for the charts
+// Add this new useEffect to process data for the charts
+useEffect(() => {
+  if (!companiesData || companiesData.length === 0) {
+    setPortfolioPieData(null);
+    setClosedBarData(null);
+    setOtherCompaniesList([]); 
+    setClosedOtherCompaniesList([]); // <-- NEW
+    return; 
+  }
+
+  // --- Stage 1: Pre-process data (unchanged) ---
+  const processedData = companiesData.map(company => {
+    // ... (This logic is unchanged) ...
+    if (company.name === "_TransactionHistory" || !company.transactions || company.transactions.length === 0) {
+      return company; 
+    }
+    const lastTx = company.transactions[company.transactions.length - 1];
+    const totalShares = lastTx.totalShares || 0;
+    if (totalShares === 0) {
+      const closedPL = calculateCompanyPL(company);
+      return {
+        ...company,
+        closedProfitLoss: closedPL,
+        lastTransactionTime: new Date(lastTx.time) 
+      };
+    }
+    return company; 
+  });
+  
+  // --- Stage 2: Build charts ---
+
+  // --- 1. Data for Portfolio Distribution Pie (Unchanged) ---
+  // ... (This logic is unchanged) ...
+  // --- 1. Data for Portfolio Distribution Pie (Unchanged) ---
+  // ... (This logic is unchanged) ...
+  // --- MODIFIED: Use a professional green/grey palette ---
+// --- 1. Data for Portfolio Distribution Pie (Unchanged) ---
+  // ... (This logic is unchanged) ...
+  
+  // -// --- 1. Data for Portfolio Distribution Pie (Unchanged) ---
+  // ... (This logic is unchanged) ...
+  
+  // --- MODIFIED: Use a "Highlight" Palette (Green + Greys) ---
+  const professionalColors = [
+    '#4caf50', // Main Green (from --dark-success) FOR THE 1ST SLICE
+    '#888888', // Medium Grey
+    '#555555', // Dark Grey
+    '#BBBBBB', // Light Grey
+    '#707070', // Another Grey
+    '#A0A0A0'  // Another Light Grey
+  ];
+  // This is the color for the "Other" slice
+  const otherColor = '#4E4E4E';
+  let grandTotalCost = 0;
+  const companyCosts = [];
+  const investmentCompanies = processedData.filter(
+      company => company.name !== "_TransactionHistory" &&
+                 company.transactions && 
+                 company.transactions.length > 0
+  );
+  investmentCompanies.forEach(company => {
+      const lastTx = company.transactions[company.transactions.length - 1];
+      if (!lastTx) return; 
+      const totalShares = lastTx.totalShares || 0;
+      const totalCost = lastTx.totalInvestment || 0; 
+      if (totalShares > 0 && totalCost > 0) {
+          companyCosts.push({ name: company.name, cost: totalCost });
+          grandTotalCost += totalCost;
       }
-      companySummary[tx.companyName].totalShares += tx.quantity;
-      companySummary[tx.companyName].totalCost += tx.totalCost;
+  });
+  const activeLabels = [];
+  const activeValues = [];
+  const activeColors = [];
+  let otherTotalCost = 0;
+  const otherCompaniesRaw = []; 
+  let colorIndex = 0;
+  if (grandTotalCost > 0) { 
+      companyCosts.sort((a, b) => b.cost - a.cost);
+      companyCosts.forEach(company => {
+          const percentage = (company.cost / grandTotalCost) * 100;
+          if (percentage > 5) {
+              activeLabels.push(company.name);
+              activeValues.push(company.cost);
+              
+              activeColors.push(professionalColors[colorIndex % professionalColors.length]);
+              colorIndex++;
+          } else {
+              otherTotalCost += company.cost;
+              otherCompaniesRaw.push(company); 
+          }
+      });
+  }
+  if (otherTotalCost > 0) {
+      activeLabels.push("Other");
+      activeValues.push(otherTotalCost);
+      activeColors.push(otherColor);
+  }
+  setOtherCompaniesList(otherCompaniesRaw); 
+  if (activeLabels.length > 0) {
+    setPortfolioPieData({
+      labels: activeLabels,
+      datasets: [{
+        label: 'Active Portfolio (by Total Cost)',
+        data: activeValues,
+        backgroundColor: activeColors,
+        borderColor: '#333',
+        borderWidth: 1,
+      }]
     });
-    
-    // Create a summary note
-    let summaryText = buyTransactions.length === 1 
-      ? `Bought ${buyTransactions[0].quantity} shares of ${buyTransactions[0].companyName}`
-      : `Combined ${buyTransactions.length} buy transactions`;
-    
-    // Add company details if multiple companies
-    if (Object.keys(companySummary).length > 1) {
-      summaryText += ": " + Object.entries(companySummary)
-        .map(([company, data]) => `${company} (${data.totalShares} shares)`)
-        .join(", ");
+  } else {
+    setPortfolioPieData(null); 
+  }
+
+  // --- 2. Data for Closed Investments BAR CHART (NEW LOGIC) ---
+  const profitColor = 'rgba(46, 204, 113, 0.8)'; 
+  const lossColor = 'rgba(231, 76, 60, 0.8)';   
+  const zeroColor = 'rgba(149, 165, 166, 0.8)';
+  const otherBarColor = 'rgba(128, 128, 128, 0.8)'; // A different grey for "Other"
+
+  const allClosedInvestments = processedData
+    .filter(company => company.closedProfitLoss !== undefined)
+    .map(c => ({ name: c.name, pnl: c.pnl || c.closedProfitLoss, time: c.lastTransactionTime })); // Standardize
+
+  if (allClosedInvestments.length > 0) {
+    // Pass 1: Find the max absolute P/L to set the threshold
+    const maxPnl = Math.max(...allClosedInvestments.map(c => Math.abs(c.pnl)));
+    const threshold = maxPnl * 0.10; // 10% of the max P/L
+
+    // Pass 2: Separate significant investments from "Other"
+    const significantLabels = [];
+    const significantValues = [];
+    const closedOtherRaw = [];
+    let otherPnlTotal = 0;
+
+    // Sort by time first, so the chart is still chronological
+    allClosedInvestments.sort((a, b) => b.time - a.time);
+
+    allClosedInvestments.forEach(company => {
+      if (Math.abs(company.pnl) > threshold) {
+        // This one is significant
+        significantLabels.push(company.name);
+        significantValues.push(company.pnl);
+      } else {
+        // Add to "Other"
+        otherPnlTotal += company.pnl;
+        closedOtherRaw.push(company);
+      }
+    });
+
+    // Pass 3: Add the "Other" bar if it has data
+    if (closedOtherRaw.length > 0) {
+      // Add "Other" as the last bar
+      significantLabels.push("Other (Small P/L)");
+      significantValues.push(otherPnlTotal);
     }
     
-    return {
-      id: rowId,
-      walletAmount: walletAmount.toFixed(3),
-      investments: {...investments},
-      extraMoneyCaused: extraMoneyCaused.toFixed(3),
-      isNote: false,
-      transactionType: 'buy',
-      hasBuyTransactions: true,
-      buyTransactionCount: buyTransactions.length,
-      buyTransactionSummary: summaryText
-    };
-  };
+    // Save the raw "Other" data to state for the modal
+    setClosedOtherCompaniesList(closedOtherRaw.sort((a,b) => b.pnl - a.pnl)); // Sort by P/L
 
+    // Pass 4: Set the final chart data
+    setClosedBarData({
+      labels: significantLabels, 
+      datasets: [{
+        label: 'Closed P/L',
+        data: significantValues, 
+        backgroundColor: (context) => {
+          // Check if this is the "Other" bar
+          if (context.label === 'Other (Small P/L)') {
+            return otherBarColor;
+          }
+          const value = context.raw;
+          if (value > 0) return profitColor;
+          if (value < 0) return lossColor;
+          return zeroColor;
+        },
+        borderColor: (context) => {
+          if (context.label === 'Other (Small P/L)') {
+            return otherBarColor;
+          }
+          const value = context.raw;
+          if (value > 0) return profitColor;
+          if (value < 0) return lossColor;
+          return zeroColor;
+        },
+        borderWidth: 1,
+      }]
+    });
+
+  } else {
+    setClosedBarData(null); // No data
+  }
+
+}, [companiesData]);
   // Refresh data from localStorage
   const refreshData = () => {
     try {
@@ -572,573 +630,8 @@ const WalletTracker = () => {
     }
   };
 
-// Handle adding money to wallet
-const handleAddMoneyToWallet = (amount) => {
-  try {
-    // Validate input
-    const amountToAdd = parseFloat(amount);
-    if (isNaN(amountToAdd) || amountToAdd <= 0) {
-      setSaveStatus('Please enter a valid positive amount');
-      setTimeout(() => setSaveStatus(''), 3000);
-      return;
-    }
-    
-    // Check if this is the first transaction or wallet is empty
-    if (walletTransactions.length === 0) {
-      // Create an initial wallet structure with empty investments
-      const initialInvestments = {};
-      companyNames.forEach(name => {
-        if (name !== "_TransactionHistory") {
-          initialInvestments[name] = '0';
-        }
-      });
-      
-      // Create a note row for the first deposit
-      const noteRow = {
-        id: `note-1`,
-        note: `Added ₹${amountToAdd.toFixed(3)} to wallet`,
-        isNote: true
-      };
-      
-      // Create the transaction row
-      const newTransaction = {
-        id: 1,
-        walletAmount: amountToAdd.toFixed(3),
-        investments: initialInvestments,
-        extraMoneyCaused: '0.000',
-        isNote: false
-      };
-      
-      // Set wallet transactions directly
-      setWalletTransactions([noteRow, newTransaction]);
-    } else {
-      // Normal case - existing transactions
-      const lastTransaction = walletTransactions[walletTransactions.length - 1];
-      const newWalletAmount = (parseFloat(lastTransaction.walletAmount) + amountToAdd).toFixed(3);
-      const nextId = lastTransaction.id + 1;
-      
-      // Create a note row
-      const noteRow = {
-        id: `note-${nextId}`,
-        note: `Added ₹${amountToAdd.toFixed(3)} to wallet`,
-        isNote: true
-      };
-      
-      // Create the transaction row
-      const newTransaction = {
-        id: nextId,
-        walletAmount: newWalletAmount,
-        investments: {...lastTransaction.investments},
-        extraMoneyCaused: lastTransaction.extraMoneyCaused || '0.000',
-        isNote: false
-      };
-      
-      // Update transaction rows
-      setWalletTransactions([...walletTransactions, noteRow, newTransaction]);
-    }
-    
-    // Create a wallet deposit transaction in the main transaction history
-    const timestamp = Date.now();
-    const allCompanies = JSON.parse(localStorage.getItem('companies')) || [];
-    
-    // Find or create the special _TransactionHistory record
-    let transactionHistory = allCompanies.find(c => c.name === "_TransactionHistory");
-    if (!transactionHistory) {
-      transactionHistory = {
-        name: "_TransactionHistory",
-        transactions: []
-      };
-      allCompanies.push(transactionHistory);
-    }
-    
-    // Add this wallet deposit to the transaction history
-    const nextGlobalIndex = transactionHistory.transactions.length + 1;
-    transactionHistory.transactions.push({
-      globalIndex: nextGlobalIndex,
-      companyName: "Wallet",
-      transactionNumber: timestamp,
-      type: "deposit",
-      amount: amountToAdd.toFixed(3),
-      date: new Date().toISOString()
-    });
-    
-    // Save back to localStorage
-    localStorage.setItem('companies', JSON.stringify(allCompanies));
-    
-    // Clear input
-    setWalletAmount('');
-    
-    setSaveStatus('Money added to wallet successfully!');
-    setTimeout(() => setSaveStatus(''), 3000);
-  } catch (error) {
-    console.error("Error adding money to wallet:", error);
-    setSaveStatus('Error adding money. Please try again.');
-  }
-};
 
-  // Handle withdrawing money from wallet
-  const handleWithdrawMoneyFromWallet = (amount) => {
-    try {
-      // Validate input
-      const amountToWithdraw = parseFloat(amount);
-      if (isNaN(amountToWithdraw) || amountToWithdraw <= 0) {
-        setSaveStatus('Please enter a valid positive amount');
-        setTimeout(() => setSaveStatus(''), 3000);
-        return;
-      }
-      
-      // Check if wallet is empty or no transactions exist
-      if (walletTransactions.length === 0) {
-        setSaveStatus('No money in wallet. Please add money first.');
-        setTimeout(() => setSaveStatus(''), 3000);
-        return;
-      }
-      
-      // Get current wallet balance
-      const lastTransaction = walletTransactions[walletTransactions.length - 1];
-      const currentBalance = parseFloat(lastTransaction.walletAmount);
-      
-      // Check if there's enough money in the wallet
-      if (amountToWithdraw > currentBalance) {
-        setSaveStatus('Not enough money in wallet');
-        setTimeout(() => setSaveStatus(''), 3000);
-        return;
-      }
-      
-      // Calculate new wallet amount
-      const newWalletAmount = (currentBalance - amountToWithdraw).toFixed(3);
-      const nextId = lastTransaction.id + 1;
-      
-      // Create a note row
-      const noteRow = {
-        id: `note-${nextId}`,
-        note: `Withdrew ₹${amountToWithdraw.toFixed(3)} from wallet`,
-        isNote: true
-      };
-      
-      // Create the transaction row
-      const newTransaction = {
-        id: nextId,
-        walletAmount: newWalletAmount,
-        investments: {...lastTransaction.investments},
-        extraMoneyCaused: lastTransaction.extraMoneyCaused || '0.000',
-        isNote: false
-      };
-      
-      // Update transaction rows
-      setWalletTransactions([...walletTransactions, noteRow, newTransaction]);
-      
-      // Create a wallet withdrawal transaction in the main transaction history
-      const timestamp = Date.now();
-      const allCompanies = JSON.parse(localStorage.getItem('companies')) || [];
-      
-      // Find or create the special _TransactionHistory record
-      let transactionHistory = allCompanies.find(c => c.name === "_TransactionHistory");
-      if (!transactionHistory) {
-        transactionHistory = {
-          name: "_TransactionHistory",
-          transactions: []
-        };
-        allCompanies.push(transactionHistory);
-      }
-      
-      // Add this wallet withdrawal to the transaction history
-      const nextGlobalIndex = transactionHistory.transactions.length + 1;
-      transactionHistory.transactions.push({
-        globalIndex: nextGlobalIndex,
-        companyName: "Wallet",
-        transactionNumber: timestamp,
-        type: "withdraw",
-        amount: amountToWithdraw.toFixed(3),
-        date: new Date().toISOString()
-      });
-      
-      // Save back to localStorage
-      localStorage.setItem('companies', JSON.stringify(allCompanies));
-      
-      // Clear input
-      setWalletAmount('');
-      
-      setSaveStatus('Money withdrawn from wallet successfully!');
-      setTimeout(() => setSaveStatus(''), 3000);
-      
-      // Force refresh the data to ensure proper row display after withdrawal
-      refreshData();
-    } catch (error) {
-      console.error("Error withdrawing money from wallet:", error);
-      setSaveStatus('Error withdrawing money. Please try again.');
-    }
-  };
 
-  // Add this function to record all transactions
-  const recordTransaction = (companyName, transactionNumber) => {
-    try {
-      console.log(`WalletTracker: Attempting to record transaction for ${companyName}, transaction #${transactionNumber}`);
-      
-      // Get all companies data
-      const savedCompanies = localStorage.getItem('companies');
-      if (!savedCompanies) return;
-      
-      const companies = JSON.parse(savedCompanies);
-      
-      // Find the company to get transaction details
-      const company = companies.find(c => c.name === companyName);
-      if (!company || !Array.isArray(company.transactions)) {
-        console.error(`Company ${companyName} not found or has no transactions`);
-        return;
-      }
-      
-      // Find the specific transaction
-      const transaction = company.transactions.find(t => t.id === transactionNumber);
-      if (!transaction) {
-        console.error(`Transaction #${transactionNumber} for ${companyName} not found`);
-        return;
-      }
-      
-      // Check the transaction type (buy/sell) based on quantity
-      const quantity = parseFloat(transaction.quantity) || 0;
-      const transactionType = quantity < 0 ? "sell" : "buy";
-      
-      console.log(`Recording ${transactionType} transaction for ${companyName}, Price: ${transaction.price}, Quantity: ${quantity}`);
-      
-      // Find or create the special transactions record
-      let transactionsRecord = companies.find(c => c.name === "_TransactionHistory");
-      
-      if (!transactionsRecord) {
-        // Create new transaction history record if it doesn't exist
-        transactionsRecord = {
-          name: "_TransactionHistory",
-          transactions: []
-        };
-        companies.push(transactionsRecord);
-      }
-      
-      // Check if this exact transaction is already recorded
-      const transactionExists = transactionsRecord.transactions.some(
-        tx => tx.companyName === companyName && tx.transactionNumber === transactionNumber
-      );
-      
-      // Only add if this transaction doesn't already exist in the history
-      if (!transactionExists) {
-        // Get the next global index
-        const nextGlobalIndex = transactionsRecord.transactions.length + 1;
-        
-        // Add the new transaction with more details
-        transactionsRecord.transactions.push({
-          globalIndex: nextGlobalIndex,
-          companyName: companyName,
-          transactionNumber: transactionNumber,
-          transactionType: transactionType,
-          date: new Date().toISOString(),
-          price: transaction.price,
-          quantity: transaction.quantity
-        });
-        
-        // Save back to localStorage
-        localStorage.setItem('companies', JSON.stringify(companies));
-        
-        console.log(`Successfully recorded ${transactionType} transaction for ${companyName} with global index ${nextGlobalIndex}`);
-      } else {
-        console.log(`Transaction for ${companyName} #${transactionNumber} already recorded`);
-      }
-    } catch (error) {
-      console.error("Error recording transaction:", error);
-    }
-  };
-
-  // Update the getTableColumns function to sort zero-investment companies by most recently sold
-  const getTableColumns = () => {
-    if (!walletTransactions.length || !companyNames.length) {
-      return {
-        investedCompanies: [],
-        zeroInvestmentCompanies: []
-      };
-    }
-    
-    // Use the last transaction to determine current investments
-    const lastTransaction = walletTransactions[walletTransactions.length - 1];
-    if (!lastTransaction || !lastTransaction.investments) {
-      return {
-        investedCompanies: [],
-        zeroInvestmentCompanies: []
-      };
-    }
-    
-    // Filter out TransactionHistory
-    const filteredCompanies = companyNames.filter(name => name !== "_TransactionHistory");
-    
-    // Separate companies into those with investments and those without
-    const investedCompanies = [];
-    const zeroInvestmentCompanies = [];
-    
-    filteredCompanies.forEach(company => {
-      const investment = parseFloat(lastTransaction.investments[company] || '0');
-      if (investment > 0) {
-        investedCompanies.push(company);
-      } else {
-        zeroInvestmentCompanies.push(company);
-      }
-    });
-    
-    // Find companies with recent sell transactions by looking through wallet transactions
-    // We'll track the last transaction ID where a company had investments
-    const lastInvestmentIds = {};
-    
-    // Go through all transactions in reverse order to find the most recent transaction
-    // where each zero-investment company had a non-zero investment
-    for (let i = walletTransactions.length - 1; i >= 0; i--) {
-      const tx = walletTransactions[i];
-      if (tx.isNote) continue; // Skip note rows
-      
-      for (const company of zeroInvestmentCompanies) {
-        if (!(company in lastInvestmentIds) && 
-            tx.investments && 
-            parseFloat(tx.investments[company] || '0') > 0) {
-          // Found the most recent transaction with investment for this company
-          lastInvestmentIds[company] = tx.id;
-        }
-      }
-    }
-    
-    // Sort zero-investment companies by their most recent investment (higher ID = more recent)
-    const sortedZeroInvestmentCompanies = [...zeroInvestmentCompanies].sort((a, b) => {
-      const aId = lastInvestmentIds[a] || 0;
-      const bId = lastInvestmentIds[b] || 0;
-      return bId - aId; // Descending order - most recent first
-    });
-    
-    return {
-      investedCompanies,
-      zeroInvestmentCompanies: sortedZeroInvestmentCompanies
-    };
-  };
-
-  function allInvestmentsZero(investments, companies) {
-    if (!investments) return true;
-    return companies.every(company => !parseFloat(investments[company] || '0'));
-  }
-
-  // Add this function to add a company from dropdown to visible columns
-  const moveCompanyToVisible = (company) => {
-    // Move the selected company to visible and the last visible to dropdown
-    setVisibleCompanies(prev => [...prev.filter(c => c !== company), company]);
-    setDropdownCompanies(prev => {
-      const lastVisible = visibleCompanies[visibleCompanies.length - 1];
-      return [...prev.filter(c => c !== company), lastVisible];
-    });
-    setShowCompanyDropdown(false);
-  };
-
-  // Add a toggle function for expanding/collapsing buy transactions
-  const toggleBuyTransactions = (rowId) => {
-    setExpandedBuyRows(prev => {
-      if (prev.includes(rowId)) {
-        return prev.filter(id => id !== rowId);
-      } else {
-        return [...prev, rowId];
-      }
-    });
-  };
-
-  // Render active investments table
-  const renderActiveInvestmentsTable = () => {
-    // Get a fresh list of all companies
-    const { investedCompanies } = getTableColumns();
-    const allCompanies = investedCompanies;
-    
-    // Find the first row with any non-zero investment
-    let firstNonZeroIndex = walletTransactions.findIndex(
-      tx => !tx.isNote && !allInvestmentsZero(tx.investments, allCompanies)
-    );
-    if (firstNonZeroIndex === -1) firstNonZeroIndex = walletTransactions.length;
-
-    return (
-      <div className="wallet-table-container">
-        {dropdownCompanies.length > 0 && (
-          <div className="companies-dropdown-container">
-            <button 
-              className="companies-dropdown-button"
-              onClick={() => setShowCompanyDropdown(!showCompanyDropdown)}
-            >
-              + {dropdownCompanies.length} More Companies
-            </button>
-            
-            {showCompanyDropdown && (
-              <div className="companies-dropdown-menu">
-                {dropdownCompanies.map(company => (
-                  <div 
-                    key={company} 
-                    className="company-dropdown-item"
-                    onClick={() => moveCompanyToVisible(company)}
-                  >
-                    {company}
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-        
-        <table className="wallet-table">
-          <thead>
-            <tr>
-              <th className='tid'>tidNo.</th>
-              <th>Amount in Wallet (₹)</th>
-              {visibleCompanies.map(company => (
-                <th key={company}>{company} (₹)</th>
-              ))}
-              <th>Extra Money Caused (₹)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {walletTransactions
-              .slice(firstNonZeroIndex)
-              .map((transaction, index) => (
-                <React.Fragment key={transaction.id}>
-                  {transaction.isNote ? (
-                    <tr className="note-row">
-                      <td colSpan={3 + visibleCompanies.length} className="transaction-note">
-                        {transaction.note}
-                      </td>
-                    </tr>
-                  ) : (
-                    <>
-                      <tr className={`${parseFloat(transaction.walletAmount) < 0 ? "negative-balance" : ""} ${transaction.transactionType === 'buy' ? "buy-transaction" : transaction.transactionType === 'sell' ? "sell-transaction" : ""}`}>
-                        <td>
-                          {transaction.id}
-                          {transaction.transactionType === 'buy' && transaction.hasBuyTransactions && (
-                            <>
-                              <button 
-                                className="toggle-buy-transactions"
-                                onClick={() => toggleBuyTransactions(transaction.id)}
-                                title={expandedBuyRows.includes(transaction.id) ? "Collapse buy transactions" : "Expand buy transactions"}
-                              >
-                                {expandedBuyRows.includes(transaction.id) ? "▼" : "▶"}
-                              </button>
-                              
-                            </>
-                          )}
-                        </td>
-                        <td className="value-display">
-                          ₹{transaction.walletAmount}
-                        </td>
-                        {visibleCompanies.map(company => (
-                          <td key={company} className="value-display">
-                            ₹{transaction.investments[company] || '0.000'}
-                          </td>
-                        ))}
-                        <td className={`value-display ${parseFloat(transaction.extraMoneyCaused) >= 0 ? "profit" : "loss"}`}>
-                          ₹{transaction.extraMoneyCaused}
-                        </td>
-                      </tr>
-                      
-                      {/* Show individual buy transactions when expanded */}
-                      {transaction.hasBuyTransactions && 
-                       expandedBuyRows.includes(transaction.id) && 
-                       individualBuyTransactions[transaction.id] && 
-                       individualBuyTransactions[transaction.id].map((buyTx, idx) => (
-                        <React.Fragment key={`${transaction.id}-buy-${idx}`}>
-                          <tr className="individual-buy-transaction-note">
-                            <td colSpan={3 + visibleCompanies.length} className="transaction-note">
-                              {buyTx.note}
-                            </td>
-                          </tr>
-                          <tr className="individual-buy-transaction">
-                            <td className="buy-tx-id">
-                              <span className="buy-tx-bullet"></span>
-                              {buyTx.transactionId}
-                            </td>
-                            <td className="value-display">
-                              ₹{buyTx.walletAmount}
-                            </td>
-                            {visibleCompanies.map(company => (
-                              <td key={company} className="value-display">
-                                ₹{buyTx.investments[company] || '0.000'}
-                              </td>
-                            ))}
-                            <td className="value-display">
-                              ₹{transaction.extraMoneyCaused}
-                            </td>
-                          </tr>
-                          {idx === individualBuyTransactions[transaction.id].length - 1 && (
-                            <tr className="buy-transactions-separator">
-                              <td colSpan={3 + visibleCompanies.length}></td>
-                            </tr>
-                          )}
-                        </React.Fragment>
-                      ))}
-                    </>
-                  )}
-                </React.Fragment>
-              ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
-  // Render zero investments table
-  const renderZeroInvestmentsTable = () => {
-    const { zeroInvestmentCompanies } = getTableColumns();
-
-    // Find the last row with any non-zero investment
-    let lastNonZeroIndex = -1;
-    for (let i = walletTransactions.length - 1; i >= 0; i--) {
-      const tx = walletTransactions[i];
-      if (!tx.isNote && !allInvestmentsZero(tx.investments, zeroInvestmentCompanies)) {
-        lastNonZeroIndex = i;
-        break;
-      }
-    }
-    const endIndex = lastNonZeroIndex === -1 ? 0 : lastNonZeroIndex + 1;
-
-    return (
-      <div className="wallet-table-container">
-        <table className="wallet-table">
-          <thead>
-            <tr>
-              <th className='tid'>Transaction #</th>
-              <th>Amount in Wallet (₹)</th>
-              <th>Extra Money Caused (₹)</th>
-              {zeroInvestmentCompanies.map(company => (
-                <th key={company}>{company} (₹)</th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {walletTransactions
-              .slice(0, endIndex)
-              .map((transaction, index) => (
-                transaction.isNote ? (
-                  <tr key={transaction.id} className="note-row">
-                    <td colSpan={3 + zeroInvestmentCompanies.length} className="transaction-note">
-                      {transaction.note}
-                    </td>
-                  </tr>
-                ) : (
-                  <tr key={transaction.id} className={parseFloat(transaction.walletAmount) < 0 ? "negative-balance" : ""}>
-                    <td>{transaction.id}</td>
-                    <td className="value-display">
-                      ₹{transaction.walletAmount}
-                    </td>
-                    <td className={`value-display ${parseFloat(transaction.extraMoneyCaused) >= 0 ? "profit" : "loss"}`}>
-                      ₹{transaction.extraMoneyCaused}
-                    </td>
-                    {zeroInvestmentCompanies.map(company => (
-                      <td key={company} className="value-display zero-investment-cell">
-                        ₹{transaction.investments[company] || '0.000'}
-                      </td>
-                    ))}
-                  </tr>
-                )
-              ))}
-          </tbody>
-        </table>
-      </div>
-    );
-  };
-
-  // Add this effect to listen for imported reminders
   useEffect(() => {
     const handleRemindersImported = (event) => {
       console.log("Reminders-imported event received", event.detail);
@@ -1249,6 +742,144 @@ const handleAddMoneyToWallet = (amount) => {
     }
   }, [walletTransactions, setExtraMoneyCaused]);
 
+  // Replace your existing 'renderActiveInvestmentsTable' with this
+  const renderActiveInvestmentsTable = () => {
+    // Show a message if there are no transactions
+    if (walletTransactions.length === 0) {
+      return (
+        <div className="wallet-table-container">
+          <p>No transaction history found. Add a deposit or buy a stock to get started.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="wallet-table-container">
+        <table className="wallet-table">
+          <thead>
+            <tr>
+              <th>Date</th>
+              <th>Amount in Wallet</th>
+              <th>Extra Money (P/L)</th>
+              {/* Dynamically create a header for each company */}
+              {companyNames.map(name => (
+                <th key={name}>{name}</th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {walletTransactions.map(tx => {
+              // --- Render a NOTE Row ---
+              // These are for 'buy', 'sell', 'deposit', 'withdraw'
+              if (tx.isNote) {
+                return (
+                  <tr key={tx.id} className="note-row">
+                    {/* colSpan makes this cell take up the whole row */}
+                    <td colSpan={companyNames.length + 3}>
+                      {tx.note}
+                    </td>
+                  </tr>
+                );
+              }
+
+              // --- Render a DATA Row ---
+              // These are the rows that show the state *after* a transaction
+              return (
+                <tr key={tx.id} className="data-row">
+                  <td>{new Date(tx.date).toLocaleDateString()}</td>
+                  <td>₹{tx.amountInWallet.toFixed(2)}</td>
+                  
+                  {/* Add 'profit' or 'loss' class for styling */}
+                  <td className={
+                    tx.extraMoneyCaused > 0 ? 'profit' :
+                    tx.extraMoneyCaused < 0 ? 'loss' : ''
+                  }>
+                    ₹{tx.extraMoneyCaused.toFixed(2)}
+                  </td>
+                  
+                  {/* Dynamically show the value for each company */}
+                  {companyNames.map(name => (
+                    <td key={name}>
+                      ₹{(tx.companyInvestments[name] || 0).toFixed(2)}
+                    </td>
+                  ))}
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // We will leave this one as a placeholder for now
+  const renderZeroInvestmentsTable = () => {
+    return (
+      <div className="table-placeholder">
+        <h2>Zero Investments Table</h2>
+        <p>This table will show companies you no longer hold.</p>
+      </div>
+    );
+  };
+
+  // --- ADD THIS NEW CLICK HANDLER FOR THE BAR CHART ---
+  const handleClosedChartClick = (event) => {
+    const chart = closedChartRef.current;
+    if (!chart || !closedBarData) return; // Exit if no chart or data
+
+    const elements = getElementAtEvent(chart, event);
+    if (!elements || elements.length === 0) {
+      return; // Exit if user didn't click a bar
+    }
+
+    const elementIndex = elements[0].index;
+    const label = closedBarData.labels[elementIndex];
+
+    // Check if the clicked bar is the "Other" bar
+    if (label === 'Other (Small P/L)') {
+      // Prepare the data for the modal
+      // We already sorted this in the useEffect
+      const modalData = closedOtherCompaniesList.map(company => ({
+        name: company.name,
+        pnl: company.pnl,
+      }));
+      
+      setClosedOtherModalData(modalData);
+      setShowClosedOtherModal(true);
+    }
+  };
+  // --- ADD THIS NEW CLICK HANDLER FUNCTION ---
+  const handleChartClick = (event) => {
+    const chart = portfolioChartRef.current;
+    if (!chart || !portfolioPieData) return; // Exit if no chart or data
+
+    const elements = getElementAtEvent(chart, event);
+    if (!elements || elements.length === 0) {
+      return; // Exit if user didn't click a slice
+    }
+
+    const elementIndex = elements[0].index;
+    const label = portfolioPieData.labels[elementIndex];
+
+    // Check if the clicked slice is the "Other" slice
+    if (label === 'Other') {
+      // Calculate the grand total cost to get correct percentages
+      const grandTotalCost = portfolioPieData.datasets[0].data.reduce((a, b) => a + b, 0);
+
+      // Prepare the data for the modal
+      const modalData = otherCompaniesList.map(company => ({
+        name: company.name,
+        cost: company.cost,
+        // Calculate percentage of the *total* portfolio
+        percentage: (company.cost / grandTotalCost) * 100 
+      }))
+      .sort((a, b) => b.cost - a.cost); // Sort by cost, largest first
+      
+      setOtherModalData(modalData);
+      setShowOtherModal(true);
+    }
+  };
+  
   return (
     <div className="wallet-tracker-container">
       <div className="wallet-header">
@@ -1324,23 +955,133 @@ const handleAddMoneyToWallet = (amount) => {
           </div>
         </div>
       </div>
+   
       
-      <div className="wallet-tabs">
+        {/* === ADD THIS TOGGLE BUTTON SECTION === */}
+      {/* === THIS IS THE NEW JSX === */}
+      <div className="chart-toggle-buttons">
         <button 
-          className={`tab-button ${activeTab === 'active-investments' ? 'active' : ''}`}
-          onClick={() => setActiveTab('active-investments')}
+          className={`toggle-button ${chartView === 'active' ? 'active' : ''}`}
+          onClick={() => setChartView('active')}
         >
-          Active Investments ({getTableColumns().investedCompanies.length})
+          Active Portfolio
         </button>
         <button 
-          className={`tab-button ${activeTab === 'zero-investments' ? 'active' : ''}`}
-          onClick={() => setActiveTab('zero-investments')}
+          className={`toggle-button ${chartView === 'closed' ? 'active' : ''}`}
+          onClick={() => setChartView('closed')}
         >
-          Zero Investments ({getTableColumns().zeroInvestmentCompanies.length})
+          Closed Positions
         </button>
       </div>
+
+      {/* The 'view-active' or 'view-closed' class will be used on mobile */}
+      <div className={`charts-container view-${chartView}`}>
+        
+        {/* --- Active Chart (Always rendered) --- */}
+        <div className="chart-wrapper" id="active-chart-wrapper">
+          {portfolioPieData ? (
+            <>
+              <h3>Portfolio Distribution</h3>
+              <Pie 
+                ref={portfolioChartRef}
+                onClick={handleChartClick}
+                data={portfolioPieData} 
+                options={{
+                  responsive: true,
+                  cutout: '60%', // Makes it a doughnut
+                  plugins: { 
+                    
+                    // --- 1. KEEPS the legend on the right ---
+                    legend: { 
+                      display: true,
+                      position: 'right',
+                      labels: {
+                        color: 'rgba(255, 255, 255, 0.6)', // Sets legend text to grey
+                        padding: 20,
+                        font: {
+                          size: 14
+                        }
+                      }
+                    },
+                    
+                    // --- 2. TURNS OFF the messy label on the chart ---
+                    datalabels: {
+                      display: false,
+                    },
+
+                    // --- 3. KEEPS your good tooltip ---
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          const label = context.label || '';
+                          const value = context.parsed;
+                          const sum = context.dataset.data.reduce((a, b) => a + b, 0);
+                          const percentage = (value * 100 / sum).toFixed(1) + '%';
+                          const formattedValue = new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(value);
+                          return `${label}: ${formattedValue} (${percentage})`;
+                        }
+                      }
+                    }
+                  }
+                }}
+              />
+            </>
+          ) : (
+            <div className="chart-wrapper-empty">
+              <h3>Portfolio Distribution</h3>
+              <p>No active investments to display.</p>
+            </div>
+          )}
+        </div>
+        
+        {/* --- Closed Chart (Always rendered) --- */}
+        <div className="chart-wrapper" id="closed-chart-wrapper">
+          {closedBarData ? (
+            <>
+              <h3>Closed Positions (Total P/L)</h3>
+              <Bar 
+                ref={closedChartRef}
+                onClick={handleClosedChartClick}
+                data={closedBarData} 
+                options={{
+                  responsive: true,
+                  barPercentage: 0.8,
+                  categoryPercentage: 0.8,
+                  plugins: { 
+                    legend: { display: false },
+                    datalabels: { display: false },
+                    tooltip: {
+                      callbacks: {
+                        label: function(context) {
+                          let label = context.dataset.label || '';
+                          if (label) { label += ': '; }
+                          if (context.parsed.y !== null) {
+                            label += new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(context.parsed.y);
+                          }
+                          return label;
+                        }
+                      }
+                    }
+                  },
+                  scales: {
+                    x: { ticks: { color: '#eee', display: false }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
+                    y: { ticks: { color: '#eee', callback: (value) => '₹' + value.toLocaleString() }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
+                  }
+                }} 
+              />
+              <div className="chart-note">Hover over bars to see company details</div>
+            </>
+          ) : (
+            <div className="chart-wrapper-empty">
+              <h3>Closed Positions (Total P/L)</h3>
+              <p>No closed positions to display.</p>
+            </div>
+          )}
+        </div>
+        
+      </div>
       
-      {activeTab === 'active-investments' ? renderActiveInvestmentsTable() : renderZeroInvestmentsTable()}
+      
       
       {/* Add reminder modal */}
       {showReminderModal && (
@@ -1498,6 +1239,85 @@ const handleAddMoneyToWallet = (amount) => {
           </div>
         </div>
       )}
+      {/* ... your other modals (reminder, info) ... */}
+      {showClosedOtherModal && (
+        <div className="modal-overlay" onClick={() => setShowClosedOtherModal(false)}>
+          <div className="modal-content info-modal other-companies-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>"Other" Closed Positions (Small P/L)</h2>
+              <button 
+                className="modal-close"
+                onClick={() => setShowClosedOtherModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <table className="other-companies-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Total Profit/Loss</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {closedOtherModalData.map(company => (
+                    <tr key={company.name}>
+                      <td>{company.name}</td>
+                      {/* Add profit/loss class for color */}
+                      <td className={
+                        company.pnl > 0 ? 'profit' :
+                        company.pnl < 0 ? 'loss' : ''
+                      }>
+                        {new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(company.pnl)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* --- ADD THIS NEW MODAL FOR "OTHER" COMPANIES --- */}
+      {showOtherModal && (
+        <div className="modal-overlay" onClick={() => setShowOtherModal(false)}>
+          <div className="modal-content info-modal other-companies-modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h2>"Other" Investments (&lt; 5% Each)</h2>
+              <button 
+                className="modal-close"
+                onClick={() => setShowOtherModal(false)}
+              >
+                ×
+              </button>
+            </div>
+            <div className="modal-body">
+              <table className="other-companies-table">
+                <thead>
+                  <tr>
+                    <th>Company</th>
+                    <th>Total Cost</th>
+                    <th>% of Portfolio</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {otherModalData.map(company => (
+                    <tr key={company.name}>
+                      <td>{company.name}</td>
+                      <td>{new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(company.cost)}</td>
+                      <td>{company.percentage.toFixed(2)}%</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      )}
+      
+
     </div>
   );
 };

@@ -1,5 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import './InvestmentTable.css';
+// At the top of InvestmentTable.jsx
+import InvestmentCharts from './InvestmentCharts.jsx'; // <-- ADD THIS LINE
+
+// ... all your other imports
 
 // Add this helper function before calculateExtraCharges
 const roundSTT = (sttValue) => {
@@ -30,6 +34,8 @@ const StockAnalysis = () => {
   const [transactions, setTransactions] = useState([
     { id: 1, price: '', quantity: '', totalInvestment: 0, totalShares: 0, averagePrice: 0, extraCharges: 0, totalExtraCharges: 0 }
   ]);
+
+  
   const [showChargesModal, setShowChargesModal] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
   const [selectedTransactions, setSelectedTransactions] = useState([]);
@@ -37,6 +43,7 @@ const StockAnalysis = () => {
   const [quickPrice, setQuickPrice] = useState('');
   const [quickQuantity, setQuickQuantity] = useState('');
   const [showProfitLossModal, setShowProfitLossModal] = useState(false);
+  const [showCharts, setShowCharts] = useState(false); // <-- ADD THIS LINE
   const [profitLossInfo, setProfitLossInfo] = useState({
     sellValue: 0,
     originalCost: 0,
@@ -71,6 +78,7 @@ const StockAnalysis = () => {
   const [transactionType, setTransactionType] = useState('buy');
   // Add this state near your other useStates
   const [showSellPL, setShowSellPL] = useState(false);
+  const [showGrowwHelperModal, setShowGrowwHelperModal] = useState(false);
 
   // Load companies from localStorage when component mounts
   useEffect(() => {
@@ -111,54 +119,40 @@ const StockAnalysis = () => {
     const isSelling = quantity < 0;
     const absoluteValue = Math.abs(totalStockPrice);
 
-    // Calculate brokerage - updated calculation
-    // Step 1: Calculate 0.1% of Total Order Value
-    let brokerage = absoluteValue * 0.001;
+    // Brokerage - Zero for delivery, ₹20 or 0.05% (whichever is lower) for intraday
+    // Assuming delivery trades for now (zero brokerage)
+    const brokerage = 0;
     
-    // Step 2: Compare with ₹20 (max cap)
-    brokerage = Math.min(brokerage, 20);
-    
-    // Step 3: Apply minimum brokerage of ₹2
-    brokerage = Math.max(brokerage, 2);
-    
-    // Step 4: Calculate 2.5% of Total Order Value
-    const brokerageLimit = absoluteValue * 0.025;
-    
-    // Step 5: Ensure brokerage doesn't exceed 2.5% of Total Order Value
-    brokerage = Math.min(brokerage, brokerageLimit);
-    
-    // STT is 0.1% for both buy and sell
-    // Apply custom rounding rule: If paise is 50 or more, round up; if less than 50, round down
-    const sttRaw = absoluteValue * 0.001;
+    // STT - 0.1% on delivery (buy & sell), 0.025% on intraday (sell only)
+    // Using delivery rates: 0.1% for both buy and sell
+    const sttRaw = absoluteValue * 0.001; // 0.1%
     const stt = roundSTT(sttRaw);
 
     if (isSelling) {
       // Selling charges
-      const exchangeCharge = absoluteValue * 0.0000297; // 0.00297%
-      const sebiTurnover = absoluteValue * 0.000001;    // 0.0001%
-      const ipf = absoluteValue * 0.000001;             // 0.0001%
+      const exchangeCharge = absoluteValue * 0.0000345; // ₹3.45 per lakh = 0.00345%
+      const sebiCharge = absoluteValue * 0.00001;       // ₹10 per crore = 0.001%
       
-      // Fixed DP charges based on gender
-      const dpCharge = gender === 'female' ? 21.54 : 21.83;
+      // DP charges - ₹23.6 per sell transaction (including GST)
+      const dpCharge = 23.6;
       
       // Calculate GST (18% on brokerage + exchange + sebi)
-      const gst = 0.18 * (brokerage + exchangeCharge + sebiTurnover);
+      const gst = 0.18 * (brokerage + exchangeCharge + sebiCharge);
       
-      return stt + brokerage + exchangeCharge + sebiTurnover + ipf + dpCharge + gst;
+      return stt + brokerage + exchangeCharge + sebiCharge + dpCharge + gst;
     } else {
       // Buying charges
       let stampDuty = absoluteValue * 0.00015;   // 0.015%
-      // Apply new rounding rule for stamp duty
+      // Apply rounding rule for stamp duty
       stampDuty = roundStampDuty(stampDuty);
       
-      const exchangeCharge = absoluteValue * 0.0000297; // 0.00297%
-      const sebiTurnover = absoluteValue * 0.000001;    // 0.0001%
-      const ipf = absoluteValue * 0.000001;             // 0.0001%
+      const exchangeCharge = absoluteValue * 0.0000345; // ₹3.45 per lakh = 0.00345%
+      const sebiCharge = absoluteValue * 0.00001;       // ₹10 per crore = 0.001%
 
       // Calculate GST (18% on brokerage + exchange + sebi)
-      const gst = 0.18 * (brokerage + exchangeCharge + sebiTurnover);
+      const gst = 0.18 * (brokerage + exchangeCharge + sebiCharge);
       
-      return stt + brokerage + stampDuty + exchangeCharge + sebiTurnover + ipf + gst;
+      return stt + brokerage + stampDuty + exchangeCharge + sebiCharge + gst;
     }
   };
 
@@ -1061,163 +1055,122 @@ const saveAllData = () => {
 };
 
   // Add a function to toggle transaction selection for calculator
-  const toggleTransactionSelection = (id) => {
-    const txIndex = transactions.findIndex(tx => tx.id === id);
-    const tx = transactions[txIndex];
-    const isSell = tx && parseFloat(tx.quantity) < 0;
-
-    if (selectedTransactions.includes(id)) {
-      // Deselecting: remove sell and its FIFO buys
-      setSelectedTransactions(selectedTransactions.filter(txId => txId !== id));
-      if (isSell) {
-        const fifoIds = getFifoBuyTransactionIds(txIndex);
-        setSelectedTransactions(prev => prev.filter(txId => !fifoIds.includes(txId)));
-      }
+  const toggleTransactionSelection = (clickedId) => {
+    const tx = transactions.find(t => t.id === clickedId);
+    if (!tx) return;
+  
+    // Find the index, which your helper function needs
+    const txIndex = transactions.findIndex(t => t.id === clickedId);
+    const quantity = parseFloat(tx.quantity) || 0;
+    const isSelected = selectedTransactions.includes(clickedId);
+  
+    if (isSelected) {
+      // UN-CHECKING
+      // Your old logic was complex and could be buggy.
+      // This is simpler and more predictable: just remove the one you clicked.
+      setSelectedTransactions(prev => prev.filter(id => id !== clickedId));
+  
     } else {
-      if (isSell) {
-        // --- New logic for "in-chain" previous sells ---
-        // 1. Simulate FIFO up to this sell, tracking which sells are "in the chain"
-        let buyLots = [];
-        let neededSellIndexes = [];
-        let remainingToSell = Math.abs(parseFloat(tx.quantity));
-
-        // Build buy lots and process sells up to and including this sell
-        for (let i = 0; i <= txIndex; i++) {
-          const t = transactions[i];
-          const price = parseFloat(t.price) || 0;
-          const quantity = parseFloat(t.quantity) || 0;
-          if (price > 0 && quantity > 0) {
-            buyLots.push({ id: t.id, remaining: quantity });
-          } else if (quantity < 0) {
-            // For each sell, simulate FIFO
-            let toSell = Math.abs(quantity);
-            let usedAny = false;
-            for (let lot of buyLots) {
-              if (lot.remaining > 0 && toSell > 0) {
-                const used = Math.min(lot.remaining, toSell);
-                lot.remaining -= used;
-                toSell -= used;
-                usedAny = true;
-              }
-            }
-            // If this is the current sell, break after processing
-            if (i === txIndex) break;
-            // If after this sell, there are still buy shares left, mark this sell as "in chain"
-            const totalRemaining = buyLots.reduce((sum, lot) => sum + lot.remaining, 0);
-            if (usedAny && totalRemaining > 0) {
-              neededSellIndexes.push(i);
-            }
-          }
-        }
-
-        // 2. Collect all their IDs and their FIFO buy IDs
-        let allIdsToSelect = [];
-        // Add all "in-chain" previous sells
-        neededSellIndexes.forEach(sellIdx => {
-          allIdsToSelect.push(transactions[sellIdx].id);
-          const fifoIds = getFifoBuyTransactionIds(sellIdx);
-          allIdsToSelect.push(...fifoIds);
-        });
-        // Add the current sell and its FIFO buys
-        allIdsToSelect.push(transactions[txIndex].id);
-        const fifoIds = getFifoBuyTransactionIds(txIndex);
-        allIdsToSelect.push(...fifoIds);
-
-        setSelectedTransactions([...new Set([...selectedTransactions, ...allIdsToSelect])]);
-      } else {
-        setSelectedTransactions([...selectedTransactions, id]);
+      // CHECKING
+      let idsToAdd = [clickedId];
+      
+      // If it's a SELL transaction, find its corresponding BUYS
+      if (quantity < 0) {
+        // Use your existing helper function
+        const buyIds = getFifoBuyTransactionIds(txIndex); 
+        idsToAdd = [...idsToAdd, ...buyIds];
       }
+      
+      // Add all new IDs (the clicked one + its buys)
+      // Using a Set prevents duplicates if a buy was already selected
+      setSelectedTransactions(prev => [...new Set([...prev, ...idsToAdd])]);
     }
   };
 
   // Add a function to calculate the sum of selected transactions
-  const calculateSelectedSum = () => {
-    if (selectedTransactions.length === 0) return { totalInvestment: 0, totalShares: 0, totalExtraCharges: 0 };
-  
-    // Get selected transactions, sorted by their order in the table
-    const selectedTxs = transactions
-      .filter(tx => selectedTransactions.includes(tx.id))
-      .sort((a, b) => transactions.findIndex(t => t.id === a.id) - transactions.findIndex(t => t.id === b.id));
-  
-    let totalInvestment = 0;
-    let totalShares = 0;
-    let totalExtraCharges = 0;
-  
-    // For FIFO tracking
-    let fifoBuyLots = [];
-    // Build up FIFO buy lots with their charges
-    transactions.forEach((tx, idx) => {
-      const price = parseFloat(tx.price) || 0;
-      const quantity = parseFloat(tx.quantity) || 0;
-      const extraCharges = parseFloat(tx.extraCharges) || 0;
-      if (price > 0 && quantity > 0) {
-        fifoBuyLots.push({
-          id: tx.id,
-          price,
-          quantity,
-          remaining: quantity,
-          extraCharges,
-          extraChargesPerShare: extraCharges / quantity
-        });
+  // REWRITTEN function
+const calculateSelectedSum = () => {
+  if (selectedTransactions.length === 0) {
+    return { totalInvestment: 0, totalShares: 0, totalExtraCharges: 0 };
+  }
+
+  // Build FIFO buy lots for all transactions up to each sell
+  let fifoBuyLots = [];
+  let totalCalculatedPL = 0;
+  let totalCalculatedShares = 0;
+  let totalCalculatedCharges = 0;
+
+  transactions.forEach((tx) => {
+    const price = parseFloat(tx.price) || 0;
+    const quantity = parseFloat(tx.quantity) || 0;
+    const extraCharges = parseFloat(tx.extraCharges) || 0;
+
+    if (price === 0 || quantity === 0) return;
+
+    if (quantity > 0) {
+      // Add to buy lots
+      fifoBuyLots.push({
+        id: tx.id,
+        price,
+        quantity,
+        remaining: quantity,
+        extraCharges,
+        extraChargesPerShare: extraCharges / quantity
+      });
+
+      // If this BUY is selected, add its direct cost and shares
+      if (selectedTransactions.includes(tx.id)) {
+        // Use your "totalInvestment -= " convention
+        totalCalculatedPL -= (price * quantity); 
+        totalCalculatedShares += quantity;
+        totalCalculatedCharges += extraCharges;
       }
-      // Don't process sells here, only use for FIFO
-    });
-  
-    // Now process selected transactions
-    selectedTxs.forEach((tx) => {
-      const price = parseFloat(tx.price) || 0;
-      const quantity = parseFloat(tx.quantity) || 0;
-      const extraCharges = parseFloat(tx.extraCharges) || 0;
-  
-      if (price === 0 || quantity === 0) return;
-  
-      if (quantity > 0) {
-        // Buy transaction: include only if selected
-        totalInvestment -= (price * quantity + extraCharges);
-        totalShares += quantity;
-        totalExtraCharges += extraCharges;
-      } else if (quantity < 0) {
-        // Sell transaction: need to calculate proportional buy charges for shares sold
-        const sellQuantity = Math.abs(quantity);
-        let remainingToSell = sellQuantity;
-        let costBasisOfSoldShares = 0;
-        let proportionalBuyCharges = 0;
-  
-        // For each buy lot, in FIFO order, use up shares
-        for (let lot of fifoBuyLots) {
-          if (lot.remaining > 0 && remainingToSell > 0) {
-            const sharesToSellFromLot = Math.min(lot.remaining, remainingToSell);
-            costBasisOfSoldShares += lot.price * sharesToSellFromLot;
-            proportionalBuyCharges += lot.extraChargesPerShare * sharesToSellFromLot;
-            lot.remaining -= sharesToSellFromLot;
-            remainingToSell -= sharesToSellFromLot;
-          }
-          if (remainingToSell <= 0) break;
+
+    } else if (quantity < 0) {
+      // This is a SELL transaction
+      let sellQuantity = Math.abs(quantity);
+      let remainingToSell = sellQuantity;
+      let costBasis = 0;
+      let buyCharges = 0;
+
+      // FIFO: Use up buy lots
+      for (let lot of fifoBuyLots) {
+        if (lot.remaining > 0 && remainingToSell > 0) {
+          const used = Math.min(lot.remaining, remainingToSell);
+          costBasis += lot.price * used;
+          buyCharges += lot.extraChargesPerShare * used;
+          lot.remaining -= used; // Deplete the lot for all future transactions
+          remainingToSell -= used;
         }
-  
-        // Sell charges for this transaction
-        const sellCharges = extraCharges;
-  
-        // Total charges = proportional buy charges + sell charges
-        const totalCharges = proportionalBuyCharges + sellCharges;
-  
-        // Profit/loss for this sell
-        const sellValue = price * sellQuantity;
-        const profitLoss = sellValue - costBasisOfSoldShares - totalCharges;
-  
-        // For summary, treat as "money in" (positive) for sells
-        totalInvestment += profitLoss + totalCharges; // This is equivalent to sellValue - costBasisOfSoldShares
-        totalShares += quantity; // quantity is negative
-        totalExtraCharges += totalCharges;
+        if (remainingToSell <= 0) break;
       }
-    });
-  
-    return {
-      totalInvestment,
-      totalShares,
-      totalExtraCharges
-    };
+
+      // If this SELL is selected, calculate and add its P/L
+      if (selectedTransactions.includes(tx.id)) {
+        const sellValue = price * sellQuantity;
+        const sellCharges = extraCharges;
+        const totalCharges = buyCharges + sellCharges;
+        const profitLoss = sellValue - costBasis - totalCharges;
+
+        // Add this P/L to our total
+        // Your old logic: totalInvestment += profitLoss + totalCharges;
+        // This is equivalent to: totalInvestment += (sellValue - costBasis);
+        // Let's use your P/L logic:
+        totalCalculatedPL += (sellValue - costBasis);
+        totalCalculatedShares += quantity; // quantity is negative
+        totalCalculatedCharges += totalCharges;
+      }
+    }
+  });
+
+  return {
+    // Renaming 'totalInvestment' to 'totalValue' or 'totalPL'
+    // would be clearer, but I'll stick to your variable name.
+    totalInvestment: totalCalculatedPL,
+    totalShares: totalCalculatedShares,
+    totalExtraCharges: totalCalculatedCharges
   };
+};
   // Check if any selected transactions are sell transactions
   const hasSellTransactionsSelected = () => {
     if (selectedTransactions.length === 0) return false;
@@ -1623,6 +1576,7 @@ const calculateLiveProfit = () => {
   };
 
   // Add a function to calculate detailed breakdown of charges for selected transactions
+  // Add a function to calculate detailed breakdown of charges for selected transactions
   const calculateDetailedCharges = () => {
     if (selectedTransactions.length === 0) {
       return {
@@ -1667,10 +1621,10 @@ const calculateLiveProfit = () => {
       const brokerageLimit = absoluteValue * 0.025; // 2.5% limit
       brokerage = Math.min(brokerage, brokerageLimit);
       
-      // STT is 0.1% for both buy and sell
-      // Apply the custom rounding rule for STT
+      // STT (Assuming roundSTT exists and performs Math.round)
       const sttRaw = absoluteValue * 0.001;
-      const stt = roundSTT(sttRaw);
+      // This matches your Python's "round half up" logic
+      const stt = roundSTT ? roundSTT(sttRaw) : Math.round(sttRaw); 
       
       // Exchange charge is 0.00297% for both
       const exchangeCharge = absoluteValue * 0.0000297;
@@ -1697,9 +1651,14 @@ const calculateLiveProfit = () => {
         const dpCharge = gender === 'female' ? 21.54 : 21.83;
         totalDpCharge += dpCharge;
       } else {
+        // --- THIS IS THE FIX ---
         // Buying specific charge - Stamp Duty
-        const stampDuty = absoluteValue * 0.00015; // 0.015%
-        totalStampDuty += stampDuty;
+        let stampDuty = absoluteValue * 0.00015; // 0.015%
+        // Only apply if 1 or more, matching Python logic
+        if (stampDuty >= 1) {
+          totalStampDuty += stampDuty;
+        }
+        // --- END OF FIX ---
       }
     });
     
@@ -2007,26 +1966,55 @@ const calculateLiveProfit = () => {
 
   return (
     <div className="stock-analysis-container">
-      {/* <p>dont knwo why grow have placed female dp charges on a male acc</p>
-      <p>why stamp duty charges are not applide to every buy transaction i maek or is there any criteria to be satisfied for stamp charges to be apllied</p> */}
-      
-      {/* <h1>Stock Investment Analysis</h1> */}
-      {/* <div className="top-controls">
-        <button 
-          className="charges-info-button"
-          onClick={() => setShowChargesModal(true)}
+      {/* Groww Excel Helper Button */}
+      <div style={{ position: 'absolute', top: 16, right: 16, zIndex: 1000 }}>
+        <button
+          style={{
+            background: '#1976d2',
+            color: 'white',
+            border: 'none',
+            borderRadius: '4px',
+            padding: '6px 12px',
+            cursor: 'pointer',
+            fontWeight: 'bold'
+          }}
+          onClick={() => setShowGrowwHelperModal(true)}
+          title="How to import Groww Excel"
         >
-          View Charges Info
+          Groww Excel → JSON Help
         </button>
-        
-        <button 
-          className="calculator-button"
-          onClick={() => setShowCalculator(!showCalculator)}
+      </div>
+      {showGrowwHelperModal && (
+  <div className="modal-overlay">
+    <div className="modal-content">
+      <div className="modal-header">
+        <h2>Convert Groww Excel to JSON</h2>
+        <button
+          className="modal-close"
+          onClick={() => setShowGrowwHelperModal(false)}
         >
-          {showCalculator ? 'Hide Calculator' : 'Selected Transaction Sum Calculator'}
+          ×
         </button>
-      </div> */}
-
+      </div>
+      <div style={{ marginTop: 12 }}>
+        <p>
+          To import your Groww transactions, first convert your Excel file to JSON using this Colab notebook:
+        </p>
+        <a
+          href="https://colab.research.google.com/drive/1sWGMVuNH3_ctbPpSx2Np1kj0_3rI4l0P#scrollTo=Eq7rvzrkNz2-"
+          target="_blank"
+          rel="noopener noreferrer"
+          style={{ color: '#1976d2', fontWeight: 'bold' }}
+        >
+          Open Groww Excel to JSON Converter
+        </a>
+        <p style={{ marginTop: 8, fontSize: '0.95em', color: '#555' }}>
+          Download your Groww Excel, run the notebook, and upload the file there. Download the JSON and import it here.
+        </p>
+      </div>
+    </div>
+  </div>
+)}
       {showCalculator && (
         <div className="calculator-container">
           <div className="calculator-header">
@@ -2365,6 +2353,7 @@ const calculateLiveProfit = () => {
           
           <div className="utility-section">
             <h3>Transaction Tools</h3>
+            
             <div className="utility-buttons">
               <button
                 className="utility-button"
@@ -2514,19 +2503,31 @@ const calculateLiveProfit = () => {
                 </div>
               )}
             </div>
+            <button 
+              className="toggle-view-button" 
+              onClick={() => setShowCharts(prev => !prev)}
+              style={{
+                marginLeft: '10px',
+                padding: '10px 15px',
+                cursor: 'pointer',
+                borderRadius: '4px',
+                border: 'none',
+                backgroundColor: '#007bff',
+                color: 'white'
+              }}
+            >
+              {showCharts ? 'Show Table' : 'Show Charts'}
+            </button>
           </div>
           
           {/* Remove the original live profit display that was below the inputs */}
         </div>
-        <button 
-          className="refresh-button"
-          onClick={handleRefresh}
-          title="Recalculate and Save All Data"
-          style={{ marginLeft: '10px', background: '#4caf50', color: 'white', border: 'none', padding: '6px 12px', borderRadius: '4px', cursor: 'pointer' }}
-        >
-          Refresh ♻️
-        </button>
+       
       </div>
+      {showCharts ? (
+        <InvestmentCharts transactions={transactions} />
+      ) : (
+        <>
 
       <table className="investment-table">
         <thead>
@@ -2647,6 +2648,9 @@ const calculateLiveProfit = () => {
           </tfoot>
         )}
       </table>
+
+      </>
+      )}
       
       {/* Show the add row button only when a company is selected */}
      

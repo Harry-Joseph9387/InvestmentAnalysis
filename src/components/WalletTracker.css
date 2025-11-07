@@ -1412,3 +1412,220 @@
   margin-left: 5px;
   border-bottom: 1px dotted #aaa;
 }
+
+
+/* === ADD THIS TO WalletTracker.css === */
+
+.charts-container {
+  display: flex;
+  flex-wrap: wrap; /* Allows charts to stack on small screens */
+  justify-content: space-around; /* Distribute space */
+  width: 100%;
+  padding: 20px 10px;
+  gap: 20px;
+  background-color: #f4f6f8; /* A light background for the section */
+  border-bottom: 1px solid #ddd;
+}
+
+.chart-wrapper,
+.chart-wrapper-empty {
+  flex: 1; /* Each chart takes equal space */
+  min-width: 300px; /* Prevents charts from getting too small */
+  max-width: 500px; /* Max width for a single chart */
+  padding: 15px;
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+  text-align: center;
+}
+
+.chart-wrapper-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px; /* Give it some height */
+  color: #777;
+}
+
+.chart-wrapper h3,
+.chart-wrapper-empty h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.1rem;
+  color: #333;
+}
+
+/* === ADD THIS TO WalletTracker.css === */
+/* --- Chart Toggle Buttons (Black, Grey, Green Theme) --- */
+.chart-toggle-buttons {
+  display: flex;
+  justify-content: center;
+  padding: 10px 0;
+  background-color: var(--dark-bg);
+  border-bottom: 1px solid var(--dark-border);
+}
+
+.toggle-button {
+  background-color: var(--dark-surface);
+  color: var(--dark-text-secondary);
+  border: 1px solid var(--dark-border);
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.toggle-button:first-of-type {
+  border-top-left-radius: 5px;
+  border-bottom-left-radius: 5px;
+}
+
+.toggle-button:last-of-type {
+  border-top-right-radius: 5px;
+  border-bottom-right-radius: 5px;
+}
+
+/* --- UPDATED: Active state is now GREEN --- */
+.toggle-button.active {
+  background-color: var(--dark-success); /* Changed from primary to success */
+  color: var(--dark-text-primary); /* Changed to light text for better contrast on green */
+  font-weight: bold;
+  border-color: var(--dark-success); /* Changed from primary to success */
+}
+
+.toggle-button:not(.active):hover {
+  background-color: var(--dark-hover);
+  color: var(--dark-text-primary);
+}
+
+
+/* --- Dark Mode Chart Container (Black/Grey Theme) --- */
+.charts-container {
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  width: 100%;
+  padding: 20px 10px;
+  background-color: var(--dark-bg);
+  border-bottom: 1px solid var(--dark-border);
+  min-height: 450px;
+}
+
+.chart-wrapper,
+.chart-wrapper-empty {
+  flex: 0 1 90%;
+  max-width: 800px;
+  min-width: 300px; 
+  padding: 20px;
+  background-color: var(--dark-surface);
+  border-radius: 8px;
+  box-shadow: none;
+  border: 1px solid var(--dark-border); 
+  text-align: center;
+}
+.chart-wrapper-empty {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  min-height: 200px; 
+  color: var(--dark-text-secondary);
+}
+
+.chart-wrapper h3,
+.chart-wrapper-empty h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  font-size: 1.2rem;
+  color: var(--dark-text-primary);
+}
+
+.chart-wrapper-empty .small-note {
+  font-size: 0.8rem;
+  color: var(--dark-text-disabled);
+  margin-top: 10px;
+}
+.chart-note {
+  font-size: 0.85rem;
+  color: var(--dark-text-secondary);
+  margin-top: 15px;
+  font-style: italic;
+}
+
+/* --- Modal Styling (Black/Grey Theme) --- */
+.other-companies-modal {
+  max-width: 600px;
+  background-color: var(--dark-surface-elevated);
+  color: var(--dark-text-primary);
+  border-radius: 8px;
+  border: 1px solid var(--dark-border);
+  box-shadow: 0 8px 16px var(--dark-shadow);
+}
+
+.other-companies-modal .modal-header {
+  border-bottom: 1px solid var(--dark-divider);
+}
+
+.other-companies-modal .modal-header h2 {
+  color: var(--dark-text-primary);
+}
+
+.other-companies-modal .modal-close {
+  color: var(--dark-text-secondary);
+}
+.other-companies-modal .modal-close:hover {
+  color: var(--dark-text-primary);
+}
+
+.other-companies-table {
+  width: 100%;
+  border-collapse: collapse;
+  margin-top: 10px;
+}
+
+.other-companies-table th,
+.other-companies-table td {
+  padding: 10px 12px;
+  text-align: left;
+  border-bottom: 1px solid var(--dark-divider);
+}
+
+.other-companies-table th {
+  background-color: var(--dark-surface);
+  color: var(--dark-text-primary);
+  font-weight: bold;
+}
+
+.other-companies-table td:nth-child(2),
+.other-companies-table td:nth-child(3) {
+  text-align: right;
+  font-family: 'Courier New', Courier, monospace;
+}
+
+.other-companies-table tr:last-child td {
+  border-bottom: none;
+}
+
+
+/* --- Mobile & Tablet View --- */
+.chart-toggle-buttons {
+  display: flex;
+}
+
+.charts-container #active-chart-wrapper,
+.charts-container #closed-chart-wrapper {
+  display: none;
+}
+
+.charts-container.view-active #active-chart-wrapper,
+.charts-container.view-closed #closed-chart-wrapper {
+  display: block;
+  flex: 0 1 90%;
+  max-width: 500px;
+}
+
+.charts-container.view-active .chart-wrapper-empty,
+.charts-container.view-closed .chart-wrapper-empty {
+  display: flex;
+}
